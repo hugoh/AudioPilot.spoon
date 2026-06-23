@@ -4,7 +4,7 @@ local obj = {}
 obj.__index = obj
 
 obj.name = "AudioPilot"
-obj.version = "1.0.0"
+obj.version = "dev"
 obj.author = "Hugo Haas"
 obj.license = "MIT"
 obj.homepage = "https://github.com/hugoh/AudioPilot.spoon"
