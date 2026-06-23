@@ -255,7 +255,7 @@ function obj:openEditor()
 		end
 	end)
 
-	self._editor:html(self:_buildEditorHTML())
+	self._editor:html(self:_buildEditorHTML(), "file://" .. _spoonPath)
 	self._editor:show()
 end
 

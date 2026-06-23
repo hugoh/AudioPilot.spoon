@@ -1,48 +1,38 @@
 <!DOCTYPE html>
-<html>
+<html data-theme="light">
   <head>
     <meta charset="UTF-8" />
     <title>Audio Device Priorities</title>
+    <link rel="stylesheet" href="vendor/pico.classless.min.css" />
+    <script src="vendor/Sortable.min.js"></script>
     <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-      font-size: 13px;
-      background: #f5f5f7;
-      color: #1d1d1f;
-      padding: 16px;
       -webkit-user-select: none;
+      font-size: 13px;
+      padding: 16px;
     }
     h1 {
       font-size: 17px;
-      font-weight: 600;
       margin-bottom: 14px;
     }
     .lbl {
       font-size: 11px;
       font-weight: 600;
       text-transform: uppercase;
-      color: #6e6e73;
+      color: var(--pico-muted-color);
       letter-spacing: 0.05em;
       margin: 10px 0 3px;
     }
-    .card {
-      background: #fff;
-      border-radius: 10px;
-      border: 1px solid rgba(0, 0, 0, 0.08);
-      overflow: hidden;
-      min-height: 34px;
+    article {
+      padding: 0;
+      margin-bottom: 0;
     }
     .item {
       display: flex;
       align-items: center;
-      padding: 7px 12px;
-      border-bottom: 1px solid rgba(0, 0, 0, 0.06);
       gap: 8px;
+      padding: 7px 12px;
+      border-bottom: 1px solid var(--pico-muted-border-color);
     }
     .item:last-child {
       border-bottom: none;
@@ -54,7 +44,7 @@
       cursor: grabbing;
     }
     .handle {
-      color: #c0c0c0;
+      color: var(--pico-muted-color);
       font-size: 12px;
       flex-shrink: 0;
     }
@@ -64,79 +54,55 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+    .empty {
+      padding: 10px 12px;
+      color: var(--pico-muted-color);
+      font-style: italic;
+    }
     .btn {
       background: none;
       border: none;
+      box-shadow: none;
       cursor: pointer;
+      flex-shrink: 0;
       font-size: 15px;
       line-height: 1;
+      margin: 0;
       padding: 0 2px;
-      flex-shrink: 0;
     }
     .rbtn {
-      color: #ff3b30;
-    }
-    .rbtn:hover {
-      color: #c00;
+      color: var(--pico-del-color, #c00);
     }
     .abtn {
-      color: #007aff;
-    }
-    .abtn:hover {
-      color: #005bcc;
-    }
-    .empty {
-      padding: 10px 12px;
-      color: #aeaeb2;
-      font-style: italic;
+      color: var(--pico-primary);
     }
     .footer {
+      border-top: 1px solid var(--pico-muted-border-color);
       display: flex;
-      justify-content: flex-end;
       gap: 8px;
+      justify-content: flex-end;
       margin-top: 14px;
       padding-top: 12px;
-      border-top: 1px solid rgba(0, 0, 0, 0.08);
     }
-    .bc {
-      padding: 5px 16px;
-      border-radius: 6px;
-      border: 1px solid #d2d2d7;
-      background: #fff;
-      cursor: pointer;
-      font-size: 13px;
-    }
-    .bc:hover {
-      background: #f0f0f5;
-    }
-    .bs {
-      padding: 5px 16px;
-      border-radius: 6px;
-      border: none;
-      background: #007aff;
-      color: #fff;
-      cursor: pointer;
-      font-size: 13px;
-      font-weight: 500;
-    }
-    .bs:hover {
-      background: #005bcc;
+    .footer button {
+      margin-bottom: 0;
+      width: auto;
     }
     </style>
   </head>
   <body>
     <h1>Audio Device Priorities</h1>
     <div class="lbl">Output Priority</div>
-    <div class="card" id="op"></div>
+    <article id="op"></article>
     <div class="lbl">Other Known Output Devices</div>
-    <div class="card" id="ou"></div>
+    <article id="ou"></article>
     <div class="lbl" style="margin-top: 14px">Input Priority</div>
-    <div class="card" id="ip"></div>
+    <article id="ip"></article>
     <div class="lbl">Other Known Input Devices</div>
-    <div class="card" id="iu"></div>
+    <article id="iu"></article>
     <div class="footer">
-      <button class="bc" id="cc">Cancel</button>
-      <button class="bs" id="sc">Save</button>
+      <button id="cc" class="secondary">Cancel</button>
+      <button id="sc">Save</button>
     </div>
     <script>
     const state = window.__initialState || {
@@ -152,17 +118,15 @@
       }
 
       function getOrder(id) {
-        return [
-          ...document.getElementById(id).querySelectorAll(".pi"),
-        ].map((e) => e.dataset.name);
+        return [...document.getElementById(id).querySelectorAll(".pi")].map(
+          (e) => e.dataset.name,
+        );
       }
 
       function syncDOM() {
         state.output.priority = getOrder("op");
         state.input.priority = getOrder("ip");
       }
-
-      let src = null;
 
       function render(id, items, type, pri) {
         const el = document.getElementById(id);
@@ -179,30 +143,10 @@
           d.className = "item" + (pri ? " pi" : "");
           d.dataset.name = n;
           if (pri) {
-            d.draggable = true;
             d.innerHTML =
               '<span class="handle">⠿</span><span class="name">' +
               esc(n) +
               '</span><button class="btn rbtn" title="Remove">✕</button>';
-            d.addEventListener("dragstart", (e) => {
-              src = d;
-              e.dataTransfer.effectAllowed = "move";
-              d.style.opacity = ".4";
-            });
-            d.addEventListener("dragover", (e) => {
-              e.preventDefault();
-              if (src === d) return;
-              const r = d.getBoundingClientRect();
-              d.parentNode.insertBefore(
-                src,
-                e.clientY < r.top + r.height / 2 ? d : d.nextSibling,
-              );
-            });
-            d.addEventListener("drop", (e) => e.preventDefault());
-            d.addEventListener("dragend", () => {
-              d.style.opacity = "";
-              src = null;
-            });
             d.querySelector(".rbtn").addEventListener("click", () => {
               syncDOM();
               state[type].priority = state[type].priority.filter(
@@ -227,25 +171,26 @@
           }
           el.appendChild(d);
         });
-        if (pri) {
-          el.addEventListener("dragover", (e) => {
-            if (
-              e.target === el ||
-              e.target.classList.contains("empty")
-            ) {
-              e.preventDefault();
-              if (src) el.appendChild(src);
-            }
-          });
-          el.addEventListener("drop", (e) => e.preventDefault());
-        }
       }
+
+      let sortableOP = null;
+      let sortableIP = null;
 
       function renderAll() {
         render("op", state.output.priority, "output", true);
         render("ou", state.output.unranked, "output", false);
         render("ip", state.input.priority, "input", true);
         render("iu", state.input.unranked, "input", false);
+        if (sortableOP) sortableOP.destroy();
+        if (sortableIP) sortableIP.destroy();
+        sortableOP = new Sortable(document.getElementById("op"), {
+          animation: 150,
+          handle: ".handle",
+        });
+        sortableIP = new Sortable(document.getElementById("ip"), {
+          animation: 150,
+          handle: ".handle",
+        });
       }
 
       document.getElementById("sc").addEventListener("click", () => {

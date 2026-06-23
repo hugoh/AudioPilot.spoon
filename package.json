@@ -1,0 +1,6 @@
+{
+  "devDependencies": {
+    "@picocss/pico": "2.x",
+    "sortablejs": "1.x"
+  }
+}

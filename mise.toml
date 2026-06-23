@@ -1,4 +1,5 @@
 [tools]
+node = "lts"
 actionlint = "latest"
 dprint = "latest"
 ghalint = "latest"
@@ -14,6 +15,29 @@ tombi = "latest"
 typos = "latest"
 # yamllint = "latest"
 zizmor = "latest"
+
+[tasks.vendor]
+run = [
+  "npm install",
+  "mkdir -p vendor",
+  "cp node_modules/@picocss/pico/css/pico.classless.min.css vendor/pico.classless.min.css",
+  "cp node_modules/sortablejs/Sortable.min.js vendor/Sortable.min.js",
+]
+description = "Fetch CSS/JS dependencies into vendor/"
+
+[tasks.package]
+run = """
+mise run vendor
+rm -rf dist
+mkdir -p dist/AutoAudioSwitcher.spoon
+cp init.lua editor.html LICENSE README.md dist/AutoAudioSwitcher.spoon/
+cp -r vendor dist/AutoAudioSwitcher.spoon/
+cd dist
+zip -r ../AutoAudioSwitcher.spoon.zip AutoAudioSwitcher.spoon
+cd ..
+rm -rf dist
+"""
+description = "Build a self-contained AutoAudioSwitcher.spoon.zip"
 
 [tasks.test]
 run = "busted test_spec.lua --verbose"

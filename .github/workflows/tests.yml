@@ -21,5 +21,8 @@ jobs:
 
       - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac
 
+      - name: Vendor dependencies
+        run: mise run vendor
+
       - name: Run tests
         run: mise run test
