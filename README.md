@@ -14,7 +14,7 @@ A Hammerspoon Spoon that automatically switches audio devices based on a priorit
 - Tracks all devices you have ever connected for easy priority management
 - Shows a 🔊 menu bar icon with current device status and priority lists
 - Sends a system notification whenever a device switch occurs
-- Config file is human-editable JSON; "Edit Config…" menu item opens it in your default editor
+- Config file is human-editable JSON, with menu items to edit priorities visually or open the raw file
 
 ## Alternatives
 
@@ -27,8 +27,24 @@ AutoAudioSwitcher aims to provide a Hammerspoon-powered, priority-driven, fully 
 
 ## Installation
 
-1. Ensure you have [Hammerspoon](https://www.hammerspoon.org) installed
-2. Clone this repository to your Spoons directory:
+Ensure you have [Hammerspoon](https://www.hammerspoon.org) installed, then choose a method:
+
+### Release zip (recommended)
+
+1. Download `AutoAudioSwitcher.spoon.zip` from the [latest release](https://github.com/hugoh/AutoAudioSwitcher.spoon/releases/latest)
+2. Unzip — this produces an `AutoAudioSwitcher.spoon` folder
+3. Move it to `~/.hammerspoon/Spoons/`
+4. Reload Hammerspoon (menu bar icon → Reload Config, or run `hs.reload()` in the console)
+
+### SpoonInstall (if you already use it)
+
+```lua
+spoon.SpoonInstall:installSpoonFromZip(
+  "https://github.com/hugoh/AutoAudioSwitcher.spoon/releases/latest/download/AutoAudioSwitcher.spoon.zip"
+)
+```
+
+### Clone from git (for development or latest changes)
 
 ```bash
 cd ~/.hammerspoon/Spoons
@@ -76,7 +92,8 @@ Click the 🔊 icon to see:
 2. **Output Priority** — your priority list with `*` marking the active device and `(disconnected)` for unavailable ones
 3. **Input Priority** — same for input
 4. **Refresh** — re-evaluates priorities and switches if needed
-5. **Edit Config…** — opens the config file in your default editor
+5. **Edit Priorities...** — opens a visual drag-and-drop editor to reorder device priorities
+6. **Edit Config File...** — opens the raw JSON config file in your default editor
 
 ## How It Works
 
