@@ -187,7 +187,7 @@
       }
 
       document.getElementById("sc").addEventListener("click", () => {
-        webkit.messageHandlers.AutoAudioSwitcherEditor.postMessage({
+        webkit.messageHandlers.AudioPilotEditor.postMessage({
           action: "save",
           outputPriority: getOrder("op"),
           inputPriority: getOrder("ip"),
@@ -195,7 +195,7 @@
       });
 
       document.getElementById("cc").addEventListener("click", () => {
-        webkit.messageHandlers.AutoAudioSwitcherEditor.postMessage({
+        webkit.messageHandlers.AudioPilotEditor.postMessage({
           action: "cancel",
         });
       });

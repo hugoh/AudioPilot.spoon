@@ -1,5 +1,5 @@
 local mock_hs
-local AutoAudioSwitcher
+local AudioPilot
 
 local function makeLogger()
 	return { i = function() end, w = function() end, d = function() end, v = function() end }
@@ -130,60 +130,60 @@ before_each(function()
 	package.loaded.hs = nil
 	_G.hs = mock_hs
 
-	AutoAudioSwitcher = dofile("init.lua")
+	AudioPilot = dofile("init.lua")
 end)
 
 after_each(function()
-	if AutoAudioSwitcher._menu then AutoAudioSwitcher:stop() end
+	if AudioPilot._menu then AudioPilot:stop() end
 end)
 
-describe("AutoAudioSwitcher", function()
+describe("AudioPilot", function()
 	describe("module structure", function()
-		it("returns a table", function() assert.is.table(AutoAudioSwitcher) end)
+		it("returns a table", function() assert.is.table(AudioPilot) end)
 
-		it("has name", function() assert.are.equal("AutoAudioSwitcher", AutoAudioSwitcher.name) end)
+		it("has name", function() assert.are.equal("AudioPilot", AudioPilot.name) end)
 
-		it("has version string", function() assert.is.string(AutoAudioSwitcher.version) end)
+		it("has version string", function() assert.is.string(AudioPilot.version) end)
 
 		it("has configPath ending in config.json", function()
-			assert.is.string(AutoAudioSwitcher.configPath)
-			assert.truthy(AutoAudioSwitcher.configPath:find("config.json$"))
+			assert.is.string(AudioPilot.configPath)
+			assert.truthy(AudioPilot.configPath:find("config.json$"))
 		end)
 
 		it("has required methods", function()
-			assert.are.equal("function", type(AutoAudioSwitcher.loadConfig))
-			assert.are.equal("function", type(AutoAudioSwitcher.saveConfig))
-			assert.are.equal("function", type(AutoAudioSwitcher.getAvailableDevices))
-			assert.are.equal("function", type(AutoAudioSwitcher.selectBestDevice))
-			assert.are.equal("function", type(AutoAudioSwitcher.onDeviceChange))
-			assert.are.equal("function", type(AutoAudioSwitcher.updateMenu))
-			assert.are.equal("function", type(AutoAudioSwitcher.start))
-			assert.are.equal("function", type(AutoAudioSwitcher.stop))
-			assert.are.equal("function", type(AutoAudioSwitcher.openConfig))
-			assert.are.equal("function", type(AutoAudioSwitcher.openEditor))
-			assert.are.equal("function", type(AutoAudioSwitcher._buildEditorHTML))
+			assert.are.equal("function", type(AudioPilot.loadConfig))
+			assert.are.equal("function", type(AudioPilot.saveConfig))
+			assert.are.equal("function", type(AudioPilot.getAvailableDevices))
+			assert.are.equal("function", type(AudioPilot.selectBestDevice))
+			assert.are.equal("function", type(AudioPilot.onDeviceChange))
+			assert.are.equal("function", type(AudioPilot.updateMenu))
+			assert.are.equal("function", type(AudioPilot.start))
+			assert.are.equal("function", type(AudioPilot.stop))
+			assert.are.equal("function", type(AudioPilot.openConfig))
+			assert.are.equal("function", type(AudioPilot.openEditor))
+			assert.are.equal("function", type(AudioPilot._buildEditorHTML))
 		end)
 
-		it("initializes with nil menu", function() assert.is_nil(AutoAudioSwitcher._menu) end)
+		it("initializes with nil menu", function() assert.is_nil(AudioPilot._menu) end)
 
-		it("initializes with nil config", function() assert.is_nil(AutoAudioSwitcher._config) end)
+		it("initializes with nil config", function() assert.is_nil(AudioPilot._config) end)
 
-		it("initializes with nil editor", function() assert.is_nil(AutoAudioSwitcher._editor) end)
+		it("initializes with nil editor", function() assert.is_nil(AudioPilot._editor) end)
 
-		it("has logger instance", function() assert.is.table(AutoAudioSwitcher.log) end)
+		it("has logger instance", function() assert.is.table(AudioPilot.log) end)
 	end)
 
 	describe("loadConfig", function()
 		it("creates default config when file missing", function()
-			AutoAudioSwitcher:loadConfig()
-			assert.is.table(AutoAudioSwitcher._config)
-			assert.is.table(AutoAudioSwitcher._config.outputPriority)
-			assert.is.table(AutoAudioSwitcher._config.inputPriority)
-			assert.is.table(AutoAudioSwitcher._config.knownDevices)
-			assert.is.table(AutoAudioSwitcher._config.knownDevices.output)
-			assert.is.table(AutoAudioSwitcher._config.knownDevices.input)
-			assert.are.equal(0, #AutoAudioSwitcher._config.outputPriority)
-			assert.are.equal(0, #AutoAudioSwitcher._config.inputPriority)
+			AudioPilot:loadConfig()
+			assert.is.table(AudioPilot._config)
+			assert.is.table(AudioPilot._config.outputPriority)
+			assert.is.table(AudioPilot._config.inputPriority)
+			assert.is.table(AudioPilot._config.knownDevices)
+			assert.is.table(AudioPilot._config.knownDevices.output)
+			assert.is.table(AudioPilot._config.knownDevices.input)
+			assert.are.equal(0, #AudioPilot._config.outputPriority)
+			assert.are.equal(0, #AudioPilot._config.inputPriority)
 		end)
 
 		it("saves config when creating default", function()
@@ -193,78 +193,77 @@ describe("AutoAudioSwitcher", function()
 				writeCount = writeCount + 1
 				return orig(data, path, pretty)
 			end
-			AutoAudioSwitcher:loadConfig()
+			AudioPilot:loadConfig()
 			assert.truthy(writeCount > 0)
 		end)
 
 		it("reads existing config from disk", function()
-			mock_hs._setConfig(AutoAudioSwitcher.configPath, {
+			mock_hs._setConfig(AudioPilot.configPath, {
 				outputPriority = { "DevA", "DevB" },
 				inputPriority = { "MicA" },
 				knownDevices = { output = {}, input = {} },
 			})
-			AutoAudioSwitcher:loadConfig()
-			assert.are.equal(2, #AutoAudioSwitcher._config.outputPriority)
-			assert.are.equal("DevA", AutoAudioSwitcher._config.outputPriority[1])
-			assert.are.equal("DevB", AutoAudioSwitcher._config.outputPriority[2])
+			AudioPilot:loadConfig()
+			assert.are.equal(2, #AudioPilot._config.outputPriority)
+			assert.are.equal("DevA", AudioPilot._config.outputPriority[1])
+			assert.are.equal("DevB", AudioPilot._config.outputPriority[2])
 		end)
 
 		it("calls hs.fs.mkdir with config directory", function()
 			local mkdirPath = nil
 			mock_hs.fs.mkdir = function(p) mkdirPath = p end
-			AutoAudioSwitcher:loadConfig()
+			AudioPilot:loadConfig()
 			assert.is_not_nil(mkdirPath)
-			assert.truthy(mkdirPath:find("AutoAudioSwitcher"))
+			assert.truthy(mkdirPath:find("AudioPilot"))
 		end)
 	end)
 
 	describe("saveConfig", function()
 		it("calls hs.json.write with configPath", function()
-			AutoAudioSwitcher:loadConfig()
+			AudioPilot:loadConfig()
 			local writtenPath
 			mock_hs.json.write = function(_data, path, _pretty) writtenPath = path end
-			AutoAudioSwitcher:saveConfig()
-			assert.are.equal(AutoAudioSwitcher.configPath, writtenPath)
+			AudioPilot:saveConfig()
+			assert.are.equal(AudioPilot.configPath, writtenPath)
 		end)
 
 		it("calls hs.fs.mkdir before writing", function()
 			local callOrder = {}
 			mock_hs.fs.mkdir = function(_p) table.insert(callOrder, "mkdir") end
 			mock_hs.json.write = function(_d, _p, _pp) table.insert(callOrder, "write") end
-			AutoAudioSwitcher._config =
-				{ outputPriority = {}, inputPriority = {}, knownDevices = { output = {}, input = {} } }
-			AutoAudioSwitcher:saveConfig()
+			AudioPilot._config = { outputPriority = {}, inputPriority = {}, knownDevices = { output = {}, input = {} } }
+			AudioPilot:saveConfig()
 			assert.are.equal("mkdir", callOrder[1])
 			assert.are.equal("write", callOrder[2])
 		end)
 	end)
 
 	describe("getAvailableDevices", function()
-		before_each(function() AutoAudioSwitcher:loadConfig() end)
+		before_each(function() AudioPilot:loadConfig() end)
 
 		it("returns output and input keys", function()
-			local available = AutoAudioSwitcher:getAvailableDevices()
+			local available = AudioPilot:getAvailableDevices()
 			assert.is.table(available.output)
 			assert.is.table(available.input)
 		end)
 
 		it("returns connected output device names as truthy keys", function()
 			makeMockDevice("Speakers", true)
-			local available = AutoAudioSwitcher:getAvailableDevices()
+			local available = AudioPilot:getAvailableDevices()
 			assert.truthy(available.output["Speakers"])
 		end)
 
 		it("returns connected input device names as truthy keys", function()
 			makeMockDevice("Microphone", false)
-			local available = AutoAudioSwitcher:getAvailableDevices()
+			local available = AudioPilot:getAvailableDevices()
 			assert.truthy(available.input["Microphone"])
 		end)
 
 		it("updates knownDevices with newly seen output devices", function()
 			makeMockDevice("NewSpeakers", true)
-			AutoAudioSwitcher:getAvailableDevices()
+			AudioPilot:getAvailableDevices()
 			local found = false
-			for _, v in ipairs(AutoAudioSwitcher._config.knownDevices.output) do
+			for _, v in ipairs(AudioPilot._config.knownDevices.output) do
 				if v == "NewSpeakers" then found = true end
 			end
 			assert.is_true(found)
@@ -272,9 +271,9 @@ describe("AutoAudioSwitcher", function()
 
 		it("updates knownDevices with newly seen input devices", function()
 			makeMockDevice("NewMic", false)
-			AutoAudioSwitcher:getAvailableDevices()
+			AudioPilot:getAvailableDevices()
 			local found = false
-			for _, v in ipairs(AutoAudioSwitcher._config.knownDevices.input) do
+			for _, v in ipairs(AudioPilot._config.knownDevices.input) do
 				if v == "NewMic" then found = true end
 			end
 			assert.is_true(found)
@@ -284,36 +283,36 @@ describe("AutoAudioSwitcher", function()
 			local writeCount = 0
 			mock_hs.json.write = function(_d, _p, _pp) writeCount = writeCount + 1 end
 			makeMockDevice("BrandNewDevice", true)
-			AutoAudioSwitcher:getAvailableDevices()
+			AudioPilot:getAvailableDevices()
 			assert.truthy(writeCount > 0)
 		end)
 
 		it("does not save config when no new devices found", function()
 			makeMockDevice("KnownDevice", true)
 			-- Pre-populate knownDevices
-			AutoAudioSwitcher._config.knownDevices.output = { "KnownDevice" }
+			AudioPilot._config.knownDevices.output = { "KnownDevice" }
 			local writeCount = 0
 			mock_hs.json.write = function(_d, _p, _pp) writeCount = writeCount + 1 end
-			AutoAudioSwitcher:getAvailableDevices()
+			AudioPilot:getAvailableDevices()
 			assert.are.equal(0, writeCount)
 		end)
 	end)
 
 	describe("selectBestDevice", function()
-		before_each(function() AutoAudioSwitcher:loadConfig() end)
+		before_each(function() AudioPilot:loadConfig() end)
 
 		it("selects highest-priority available output device", function()
 			makeMockDevice("DevB", true)
-			AutoAudioSwitcher._config.outputPriority = { "DevA", "DevB" }
-			AutoAudioSwitcher:selectBestDevice("output")
+			AudioPilot._config.outputPriority = { "DevA", "DevB" }
+			AudioPilot:selectBestDevice("output")
 			assert.are.equal("DevB", mock_hs.audiodevice._defaultOutput:name())
 		end)
 
 		it("selects first priority device when connected", function()
 			makeMockDevice("DevA", true)
 			makeMockDevice("DevB", true)
-			AutoAudioSwitcher._config.outputPriority = { "DevA", "DevB" }
-			AutoAudioSwitcher:selectBestDevice("output")
+			AudioPilot._config.outputPriority = { "DevA", "DevB" }
+			AudioPilot:selectBestDevice("output")
 			assert.are.equal("DevA", mock_hs.audiodevice._defaultOutput:name())
 		end)
 
@@ -325,22 +324,22 @@ describe("AutoAudioSwitcher", function()
 				mock_hs.audiodevice._defaultOutput = self
 			end
 			mock_hs.audiodevice._defaultOutput = devA
-			AutoAudioSwitcher._config.outputPriority = { "DevA" }
-			AutoAudioSwitcher:selectBestDevice("output")
+			AudioPilot._config.outputPriority = { "DevA" }
+			AudioPilot:selectBestDevice("output")
 			assert.are.equal(0, switchCount)
 		end)
 
 		it("does nothing when no priority device is available", function()
-			AutoAudioSwitcher._config.outputPriority = { "NonExistentDevice" }
+			AudioPilot._config.outputPriority = { "NonExistentDevice" }
 			-- Should not error, no switch
-			AutoAudioSwitcher:selectBestDevice("output")
+			AudioPilot:selectBestDevice("output")
 			assert.is_nil(mock_hs.audiodevice._defaultOutput)
 		end)
 
 		it("selects highest-priority available input device", function()
 			makeMockDevice("MicB", false)
-			AutoAudioSwitcher._config.inputPriority = { "MicA", "MicB" }
-			AutoAudioSwitcher:selectBestDevice("input")
+			AudioPilot._config.inputPriority = { "MicA", "MicB" }
+			AudioPilot:selectBestDevice("input")
 			assert.are.equal("MicB", mock_hs.audiodevice._defaultInput:name())
 		end)
 
@@ -352,28 +351,28 @@ describe("AutoAudioSwitcher", function()
 				mock_hs.audiodevice._defaultInput = self
 			end
 			mock_hs.audiodevice._defaultInput = mic
-			AutoAudioSwitcher._config.inputPriority = { "MicA" }
-			AutoAudioSwitcher:selectBestDevice("input")
+			AudioPilot._config.inputPriority = { "MicA" }
+			AudioPilot:selectBestDevice("input")
 			assert.are.equal(0, switchCount)
 		end)
 	end)
 
 	describe("notifications", function()
-		before_each(function() AutoAudioSwitcher:loadConfig() end)
+		before_each(function() AudioPilot:loadConfig() end)
 
 		it("sends notification when switching output device", function()
 			makeMockDevice("DevA", true)
-			AutoAudioSwitcher._config.outputPriority = { "DevA" }
-			AutoAudioSwitcher:selectBestDevice("output")
+			AudioPilot._config.outputPriority = { "DevA" }
+			AudioPilot:selectBestDevice("output")
 			assert.are.equal(1, #mock_hs.notify._sent)
-			assert.are.equal("AutoAudioSwitcher", mock_hs.notify._sent[1].title)
+			assert.are.equal("AudioPilot", mock_hs.notify._sent[1].title)
 			assert.truthy(mock_hs.notify._sent[1].informativeText:find("DevA"))
 		end)
 
 		it("sends notification when switching input device", function()
 			makeMockDevice("MicA", false)
-			AutoAudioSwitcher._config.inputPriority = { "MicA" }
-			AutoAudioSwitcher:selectBestDevice("input")
+			AudioPilot._config.inputPriority = { "MicA" }
+			AudioPilot:selectBestDevice("input")
 			assert.are.equal(1, #mock_hs.notify._sent)
 			assert.truthy(mock_hs.notify._sent[1].informativeText:find("MicA"))
 		end)
@@ -381,22 +380,22 @@ describe("AutoAudioSwitcher", function()
 		it("does not notify when device is already current", function()
 			local dev = makeMockDevice("DevA", true)
 			mock_hs.audiodevice._defaultOutput = dev
-			AutoAudioSwitcher._config.outputPriority = { "DevA" }
-			AutoAudioSwitcher:selectBestDevice("output")
+			AudioPilot._config.outputPriority = { "DevA" }
+			AudioPilot:selectBestDevice("output")
 			assert.are.equal(0, #mock_hs.notify._sent)
 		end)
 	end)
 
 	describe("onDeviceChange", function()
 		before_each(function()
-			AutoAudioSwitcher:loadConfig()
-			AutoAudioSwitcher._menu = mock_hs.menubar.new()
+			AudioPilot:loadConfig()
+			AudioPilot._menu = mock_hs.menubar.new()
 		end)
 
 		it("calls selectBestDevice for output and input on dev# event", function()
 			local calls = {}
-			AutoAudioSwitcher.selectBestDevice = function(_self, deviceType) table.insert(calls, deviceType) end
-			AutoAudioSwitcher:onDeviceChange("dev#")
+			AudioPilot.selectBestDevice = function(_self, deviceType) table.insert(calls, deviceType) end
+			AudioPilot:onDeviceChange("dev#")
 			local hasOutput, hasInput = false, false
 			for _, v in ipairs(calls) do
 				if v == "output" then hasOutput = true end
@@ -409,9 +408,9 @@ describe("AutoAudioSwitcher", function()
 		it("calls updateMenu on dOut event without selectBestDevice", function()
 			local updateCalled = false
 			local selectCalled = false
-			AutoAudioSwitcher.updateMenu = function() updateCalled = true end
-			AutoAudioSwitcher.selectBestDevice = function() selectCalled = true end
-			AutoAudioSwitcher:onDeviceChange("dOut")
+			AudioPilot.updateMenu = function() updateCalled = true end
+			AudioPilot.selectBestDevice = function() selectCalled = true end
+			AudioPilot:onDeviceChange("dOut")
 			assert.is_true(updateCalled)
 			assert.is_false(selectCalled)
 		end)
@@ -419,85 +418,85 @@ describe("AutoAudioSwitcher", function()
 		it("calls updateMenu on dIn event without selectBestDevice", function()
 			local updateCalled = false
 			local selectCalled = false
-			AutoAudioSwitcher.updateMenu = function() updateCalled = true end
-			AutoAudioSwitcher.selectBestDevice = function() selectCalled = true end
-			AutoAudioSwitcher:onDeviceChange("dIn")
+			AudioPilot.updateMenu = function() updateCalled = true end
+			AudioPilot.selectBestDevice = function() selectCalled = true end
+			AudioPilot:onDeviceChange("dIn")
 			assert.is_true(updateCalled)
 			assert.is_false(selectCalled)
 		end)
 
 		it("ignores unknown events without error", function()
-			AutoAudioSwitcher.selectBestDevice = function() error("should not be called") end
-			AutoAudioSwitcher.updateMenu = function() error("should not be called") end
-			assert.has_no.errors(function() AutoAudioSwitcher:onDeviceChange("unknown") end)
+			AudioPilot.selectBestDevice = function() error("should not be called") end
+			AudioPilot.updateMenu = function() error("should not be called") end
+			assert.has_no.errors(function() AudioPilot:onDeviceChange("unknown") end)
 		end)
 	end)
 
 	describe("updateMenu", function()
 		before_each(function()
-			AutoAudioSwitcher:loadConfig()
-			AutoAudioSwitcher._menu = mock_hs.menubar.new()
-			AutoAudioSwitcher._config.outputPriority = { "Speakers", "Headphones" }
-			AutoAudioSwitcher._config.inputPriority = { "Microphone" }
+			AudioPilot:loadConfig()
+			AudioPilot._menu = mock_hs.menubar.new()
+			AudioPilot._config.outputPriority = { "Speakers", "Headphones" }
+			AudioPilot._config.inputPriority = { "Microphone" }
 			makeMockDevice("Speakers", true)
 			makeMockDevice("Headphones", true)
 			makeMockDevice("Microphone", false)
 			mock_hs.audiodevice._defaultOutput = mock_hs.audiodevice._outputDevices[1] -- Speakers
 			mock_hs.audiodevice._defaultInput = mock_hs.audiodevice._inputDevices[1] -- Microphone
-			AutoAudioSwitcher:updateMenu()
+			AudioPilot:updateMenu()
 		end)
 
-		it("sets menu title to sound icon", function() assert.are.equal("🔊", AutoAudioSwitcher._menu._title) end)
+		it("sets menu title to sound icon", function() assert.are.equal("🔊", AudioPilot._menu._title) end)
 
 		it("menu contains current output device name", function()
-			local item = findMenuItem(AutoAudioSwitcher._menu._menuItems, "Output:")
+			local item = findMenuItem(AudioPilot._menu._menuItems, "Output:")
 			assert.is_not_nil(item)
 			assert.truthy(item.title:find("Speakers"))
 		end)
 
 		it("menu contains current input device name", function()
-			local item = findMenuItem(AutoAudioSwitcher._menu._menuItems, "Input:")
+			local item = findMenuItem(AudioPilot._menu._menuItems, "Input:")
 			assert.is_not_nil(item)
 			assert.truthy(item.title:find("Microphone"))
 		end)
 
 		it("marks current output device with asterisk", function()
-			local item = findMenuItem(AutoAudioSwitcher._menu._menuItems, "* Speakers")
+			local item = findMenuItem(AudioPilot._menu._menuItems, "* Speakers")
 			assert.is_not_nil(item)
 		end)
 
 		it("marks non-current connected device without asterisk", function()
-			local item = findMenuItem(AutoAudioSwitcher._menu._menuItems, "  Headphones")
+			local item = findMenuItem(AudioPilot._menu._menuItems, "  Headphones")
 			assert.is_not_nil(item)
 		end)
 
 		it("marks disconnected priority device", function()
-			AutoAudioSwitcher._config.outputPriority = { "Speakers", "DisconnectedDevice" }
-			AutoAudioSwitcher:updateMenu()
-			local item = findMenuItem(AutoAudioSwitcher._menu._menuItems, "DisconnectedDevice")
+			AudioPilot._config.outputPriority = { "Speakers", "DisconnectedDevice" }
+			AudioPilot:updateMenu()
+			local item = findMenuItem(AudioPilot._menu._menuItems, "DisconnectedDevice")
 			assert.is_not_nil(item)
 			assert.truthy(item.title:find("disconnected"))
 		end)
 
 		it("menu contains Refresh item", function()
-			local item = findMenuItem(AutoAudioSwitcher._menu._menuItems, "Refresh")
+			local item = findMenuItem(AudioPilot._menu._menuItems, "Refresh")
 			assert.is_not_nil(item)
 		end)
 
 		it("menu contains Edit Priorities item", function()
-			local item = findMenuItem(AutoAudioSwitcher._menu._menuItems, "Edit Priorities")
+			local item = findMenuItem(AudioPilot._menu._menuItems, "Edit Priorities")
 			assert.is_not_nil(item)
 		end)
 
 		it("menu contains Edit Config File item", function()
-			local item = findMenuItem(AutoAudioSwitcher._menu._menuItems, "Edit Config File")
+			local item = findMenuItem(AudioPilot._menu._menuItems, "Edit Config File")
 			assert.is_not_nil(item)
 		end)
 
 		it("Refresh item triggers selectBestDevice for both types", function()
 			local calls = {}
-			AutoAudioSwitcher.selectBestDevice = function(_self, deviceType) table.insert(calls, deviceType) end
-			local item = findMenuItem(AutoAudioSwitcher._menu._menuItems, "Refresh")
+			AudioPilot.selectBestDevice = function(_self, deviceType) table.insert(calls, deviceType) end
+			local item = findMenuItem(AudioPilot._menu._menuItems, "Refresh")
 			assert.is_not_nil(item)
 			item.fn()
 			local hasOutput, hasInput = false, false
@@ -512,58 +511,58 @@ describe("AutoAudioSwitcher", function()
 		it("Edit Config File item calls hs.open with configPath", function()
 			local openedPath = nil
 			mock_hs.open = function(p) openedPath = p end
-			local item = findMenuItem(AutoAudioSwitcher._menu._menuItems, "Edit Config File")
+			local item = findMenuItem(AudioPilot._menu._menuItems, "Edit Config File")
 			assert.is_not_nil(item)
 			item.fn()
-			assert.are.equal(AutoAudioSwitcher.configPath, openedPath)
+			assert.are.equal(AudioPilot.configPath, openedPath)
 		end)
 
 		it("Edit Priorities item calls openEditor", function()
 			local editorOpened = false
-			AutoAudioSwitcher.openEditor = function(_self) editorOpened = true end
-			local item = findMenuItem(AutoAudioSwitcher._menu._menuItems, "Edit Priorities")
+			AudioPilot.openEditor = function(_self) editorOpened = true end
+			local item = findMenuItem(AudioPilot._menu._menuItems, "Edit Priorities")
 			assert.is_not_nil(item)
 			item.fn()
 			assert.is_true(editorOpened)
 		end)
 
 		it("does nothing when menu is nil", function()
-			AutoAudioSwitcher._menu = nil
-			assert.has_no.errors(function() AutoAudioSwitcher:updateMenu() end)
+			AudioPilot._menu = nil
+			assert.has_no.errors(function() AudioPilot:updateMenu() end)
 		end)
 	end)
 
 	describe("_buildEditorHTML", function()
 		before_each(function()
-			AutoAudioSwitcher:loadConfig()
-			AutoAudioSwitcher._config.outputPriority = { "Speakers" }
-			AutoAudioSwitcher._config.inputPriority = { "Microphone" }
-			AutoAudioSwitcher._config.knownDevices.output = { "Speakers", "Headphones" }
-			AutoAudioSwitcher._config.knownDevices.input = { "Microphone", "ExtraMic" }
+			AudioPilot:loadConfig()
+			AudioPilot._config.outputPriority = { "Speakers" }
+			AudioPilot._config.inputPriority = { "Microphone" }
+			AudioPilot._config.knownDevices.output = { "Speakers", "Headphones" }
+			AudioPilot._config.knownDevices.input = { "Microphone", "ExtraMic" }
 		end)
 
 		it("returns a string", function()
-			local html = AutoAudioSwitcher:_buildEditorHTML()
+			local html = AudioPilot:_buildEditorHTML()
 			assert.is.string(html)
 		end)
 
 		it("contains output priority device name", function()
-			local html = AutoAudioSwitcher:_buildEditorHTML()
+			local html = AudioPilot:_buildEditorHTML()
 			assert.truthy(html:find("Speakers", 1, true))
 		end)
 
 		it("contains input priority device name", function()
-			local html = AutoAudioSwitcher:_buildEditorHTML()
+			local html = AudioPilot:_buildEditorHTML()
 			assert.truthy(html:find("Microphone", 1, true))
 		end)
 
 		it("contains unranked known output device", function()
-			local html = AutoAudioSwitcher:_buildEditorHTML()
+			local html = AudioPilot:_buildEditorHTML()
 			assert.truthy(html:find("Headphones", 1, true))
 		end)
 
 		it("does not include ranked device in unranked output list", function()
-			local html = AutoAudioSwitcher:_buildEditorHTML()
+			local html = AudioPilot:_buildEditorHTML()
 			local count = 0
 			local pos = 1
 			while true do
@@ -578,50 +577,50 @@ describe("AutoAudioSwitcher", function()
 
 	describe("openEditor", function()
 		before_each(function()
-			AutoAudioSwitcher:loadConfig()
-			AutoAudioSwitcher._menu = mock_hs.menubar.new()
+			AudioPilot:loadConfig()
+			AudioPilot._menu = mock_hs.menubar.new()
 		end)
 
 		it("creates a webview on first call", function()
-			AutoAudioSwitcher:openEditor()
-			assert.is_not_nil(AutoAudioSwitcher._editor)
+			AudioPilot:openEditor()
+			assert.is_not_nil(AudioPilot._editor)
 		end)
 
 		it("shows the webview", function()
-			AutoAudioSwitcher:openEditor()
+			AudioPilot:openEditor()
 			assert.is_true(mock_hs.webview._lastWebview._visible)
 		end)
 
 		it("does not create a second webview when already open", function()
-			AutoAudioSwitcher:openEditor()
-			local first = AutoAudioSwitcher._editor
-			AutoAudioSwitcher:openEditor()
-			assert.are.equal(first, AutoAudioSwitcher._editor)
+			AudioPilot:openEditor()
+			local first = AudioPilot._editor
+			AudioPilot:openEditor()
+			assert.are.equal(first, AudioPilot._editor)
 		end)
 
 		it("window closing callback sets _editor to nil", function()
-			AutoAudioSwitcher:openEditor()
+			AudioPilot:openEditor()
 			local wv = mock_hs.webview._lastWebview
 			wv._windowCb("closing")
-			assert.is_nil(AutoAudioSwitcher._editor)
+			assert.is_nil(AudioPilot._editor)
 		end)
 
 		it("save callback updates outputPriority", function()
-			AutoAudioSwitcher:openEditor()
+			AudioPilot:openEditor()
 			local ctrl = mock_hs.webview._lastController
 			ctrl._callback({ body = { action = "save", outputPriority = { "NewOut" }, inputPriority = {} } })
-			assert.are.equal("NewOut", AutoAudioSwitcher._config.outputPriority[1])
+			assert.are.equal("NewOut", AudioPilot._config.outputPriority[1])
 		end)
 
 		it("save callback updates inputPriority", function()
-			AutoAudioSwitcher:openEditor()
+			AudioPilot:openEditor()
 			local ctrl = mock_hs.webview._lastController
 			ctrl._callback({ body = { action = "save", outputPriority = {}, inputPriority = { "NewMic" } } })
-			assert.are.equal("NewMic", AutoAudioSwitcher._config.inputPriority[1])
+			assert.are.equal("NewMic", AudioPilot._config.inputPriority[1])
 		end)
 
 		it("save callback calls saveConfig", function()
-			AutoAudioSwitcher:openEditor()
+			AudioPilot:openEditor()
 			local writeCount = 0
 			local origWrite = mock_hs.json.write
 			mock_hs.json.write = function(data, path, pretty)
@@ -635,8 +634,8 @@ describe("AutoAudioSwitcher", function()
 
 		it("save callback calls selectBestDevice for output", function()
 			local calls = {}
-			AutoAudioSwitcher:openEditor()
-			AutoAudioSwitcher.selectBestDevice = function(_self, dt) table.insert(calls, dt) end
+			AudioPilot:openEditor()
+			AudioPilot.selectBestDevice = function(_self, dt) table.insert(calls, dt) end
 			local ctrl = mock_hs.webview._lastController
 			ctrl._callback({ body = { action = "save", outputPriority = {}, inputPriority = {} } })
 			local found = false
@@ -648,8 +647,8 @@ describe("AutoAudioSwitcher", function()
 
 		it("save callback calls selectBestDevice for input", function()
 			local calls = {}
-			AutoAudioSwitcher:openEditor()
-			AutoAudioSwitcher.selectBestDevice = function(_self, dt) table.insert(calls, dt) end
+			AudioPilot:openEditor()
+			AudioPilot.selectBestDevice = function(_self, dt) table.insert(calls, dt) end
 			local ctrl = mock_hs.webview._lastController
 			ctrl._callback({ body = { action = "save", outputPriority = {}, inputPriority = {} } })
 			local found = false
@@ -660,79 +659,79 @@ describe("AutoAudioSwitcher", function()
 		end)
 
 		it("save callback deletes webview and sets _editor to nil", function()
-			AutoAudioSwitcher:openEditor()
+			AudioPilot:openEditor()
 			local ctrl = mock_hs.webview._lastController
 			ctrl._callback({ body = { action = "save", outputPriority = {}, inputPriority = {} } })
-			assert.is_nil(AutoAudioSwitcher._editor)
+			assert.is_nil(AudioPilot._editor)
 		end)
 
 		it("cancel callback does not modify config", function()
-			AutoAudioSwitcher._config.outputPriority = { "Original" }
-			AutoAudioSwitcher:openEditor()
+			AudioPilot._config.outputPriority = { "Original" }
+			AudioPilot:openEditor()
 			local ctrl = mock_hs.webview._lastController
 			ctrl._callback({ body = { action = "cancel" } })
-			assert.are.equal("Original", AutoAudioSwitcher._config.outputPriority[1])
+			assert.are.equal("Original", AudioPilot._config.outputPriority[1])
 		end)
 
 		it("cancel callback deletes webview and sets _editor to nil", function()
-			AutoAudioSwitcher:openEditor()
+			AudioPilot:openEditor()
 			local ctrl = mock_hs.webview._lastController
 			ctrl._callback({ body = { action = "cancel" } })
-			assert.is_nil(AutoAudioSwitcher._editor)
+			assert.is_nil(AudioPilot._editor)
 		end)
 	end)
 
 	describe("start and stop", function()
 		it("creates menu on start", function()
-			AutoAudioSwitcher:start()
-			assert.is_not_nil(AutoAudioSwitcher._menu)
+			AudioPilot:start()
+			assert.is_not_nil(AudioPilot._menu)
 		end)
 
 		it("sets menu title to sound icon on start", function()
-			AutoAudioSwitcher:start()
-			assert.are.equal("🔊", AutoAudioSwitcher._menu._title)
+			AudioPilot:start()
+			assert.are.equal("🔊", AudioPilot._menu._title)
 		end)
 
 		it("sets audio watcher callback on start", function()
-			AutoAudioSwitcher:start()
+			AudioPilot:start()
 			assert.is_not_nil(mock_hs.audiodevice.watcher._callback)
 		end)
 
 		it("calls selectBestDevice for output on start", function()
 			local outputCalled = false
-			AutoAudioSwitcher.selectBestDevice = function(_self, deviceType)
+			AudioPilot.selectBestDevice = function(_self, deviceType)
 				if deviceType == "output" then outputCalled = true end
 			end
-			AutoAudioSwitcher:start()
+			AudioPilot:start()
 			assert.is_true(outputCalled)
 		end)
 
 		it("calls selectBestDevice for input on start", function()
 			local inputCalled = false
-			AutoAudioSwitcher.selectBestDevice = function(_self, deviceType)
+			AudioPilot.selectBestDevice = function(_self, deviceType)
 				if deviceType == "input" then inputCalled = true end
 			end
-			AutoAudioSwitcher:start()
+			AudioPilot:start()
 			assert.is_true(inputCalled)
 		end)
 
 		it("stops watcher on stop", function()
-			AutoAudioSwitcher:start()
-			AutoAudioSwitcher:stop()
+			AudioPilot:start()
+			AudioPilot:stop()
 			assert.is_nil(mock_hs.audiodevice.watcher._callback)
 		end)
 
 		it("deletes menu on stop", function()
-			AutoAudioSwitcher:start()
-			local menu = AutoAudioSwitcher._menu
-			AutoAudioSwitcher:stop()
+			AudioPilot:start()
+			local menu = AudioPilot._menu
+			AudioPilot:stop()
 			assert.is_true(menu._deleted)
 		end)
 
 		it("sets menu to nil on stop", function()
-			AutoAudioSwitcher:start()
-			AutoAudioSwitcher:stop()
-			assert.is_nil(AutoAudioSwitcher._menu)
+			AudioPilot:start()
+			AudioPilot:stop()
+			assert.is_nil(AudioPilot._menu)
 		end)
 	end)
 end)

@@ -1,10 +1,10 @@
-# AutoAudioSwitcher
+# AudioPilot
 
 This repo is a Hammerspoon Spoon that allows to prioritize audio devices for both input and output.
 
 The user specifies a prioritized list of audio devices for input and output. When new audio devices are connected or disconnected, the code will automatically review the prioritized list and adjust the input and output devices accordingly.
 
-The configuration is stored in .config/AutoAudioSwitcher in a human-editable format. The Spoon should keep track of all the audio devices that have been connected and disconnected, and allow the user to set their priorities. A configuration editor would be nice.
+The configuration is stored in .config/AudioPilot in a human-editable format. The Spoon should keep track of all the audio devices that have been connected and disconnected, and allow the user to set their priorities. A configuration editor would be nice.
 
 A sound-related icon should be shown in the menu bar. When clicked, the menu should:
 

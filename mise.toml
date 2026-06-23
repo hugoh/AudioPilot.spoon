@@ -29,15 +29,15 @@ description = "Fetch CSS/JS dependencies into vendor/"
 run = """
 mise run vendor
 rm -rf dist
-mkdir -p dist/AutoAudioSwitcher.spoon
-cp init.lua editor.html LICENSE README.md dist/AutoAudioSwitcher.spoon/
-cp -r vendor dist/AutoAudioSwitcher.spoon/
+mkdir -p dist/AudioPilot.spoon
+cp init.lua editor.html LICENSE README.md dist/AudioPilot.spoon/
+cp -r vendor dist/AudioPilot.spoon/
 cd dist
-zip -r ../AutoAudioSwitcher.spoon.zip AutoAudioSwitcher.spoon
+zip -r ../AudioPilot.spoon.zip AudioPilot.spoon
 cd ..
 rm -rf dist
 """
-description = "Build a self-contained AutoAudioSwitcher.spoon.zip"
+description = "Build a self-contained AudioPilot.spoon.zip"
 
 [tasks.test]
 run = "busted test_spec.lua --verbose"

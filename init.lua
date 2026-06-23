@@ -3,18 +3,18 @@ local _spoonPath = debug.getinfo(1, "S").source:sub(2):match("(.*/)") or "./"
 local obj = {}
 obj.__index = obj
 
-obj.name = "AutoAudioSwitcher"
+obj.name = "AudioPilot"
 obj.version = "1.0.0"
 obj.author = "Hugo Haas"
 obj.license = "MIT"
-obj.homepage = "https://github.com/hugoh/AutoAudioSwitcher.spoon"
+obj.homepage = "https://github.com/hugoh/AudioPilot.spoon"
 
-obj.configPath = os.getenv("HOME") .. "/.config/AutoAudioSwitcher/config.json"
+obj.configPath = os.getenv("HOME") .. "/.config/AudioPilot/config.json"
 
 obj._menu = nil
 obj._config = nil
 obj._editor = nil
-obj.log = hs.logger.new("AutoAudioSwitcher", "info")
+obj.log = hs.logger.new("AudioPilot", "info")
 
 local function tableContains(t, value)
 	for _, v in ipairs(t) do
@@ -107,9 +107,7 @@ function obj:selectBestDevice(deviceType)
 						dev:setDefaultInputDevice()
 					end
 					self.log.i("Switched " .. deviceType .. " to: " .. name)
-					hs.notify
-						.new({ title = "AutoAudioSwitcher", informativeText = deviceType .. " → " .. name })
-						:send()
+					hs.notify.new({ title = "AudioPilot", informativeText = deviceType .. " → " .. name }):send()
 					self:updateMenu()
 					return
 				end
@@ -226,7 +224,7 @@ function obj:openEditor()
 		return
 	end
 
-	local controller = hs.webview.usercontent.new("AutoAudioSwitcherEditor")
+	local controller = hs.webview.usercontent.new("AudioPilotEditor")
 	local sf = hs.screen.mainScreen():frame()
 	local w, h = 480, 620
 	local frame = { x = sf.x + (sf.w - w) / 2, y = sf.y + (sf.h - h) / 2, w = w, h = h }
@@ -269,7 +267,7 @@ function obj:start()
 	self:selectBestDevice("input")
 	local self_ref = self
 	hs.audiodevice.watcher.start(function(event) self_ref:onDeviceChange(event) end)
-	self.log.i("AutoAudioSwitcher started")
+	self.log.i("AudioPilot started")
 end
 
 function obj:stop()
@@ -278,7 +276,7 @@ function obj:stop()
 		self._menu:delete()
 		self._menu = nil
 	end
-	self.log.i("AutoAudioSwitcher stopped")
+	self.log.i("AudioPilot stopped")
 end
 
 return obj

@@ -1,11 +1,11 @@
-# AutoAudioSwitcher Spoon
+# AudioPilot Spoon
 
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Hammerspoon Spoon](https://img.shields.io/badge/Hammerspoon-Spoon-FFA500.svg)](https://www.hammerspoon.org/docs/index.html)
 
 A Hammerspoon Spoon that automatically switches audio devices based on a priority list. When devices are connected or disconnected, it selects the highest-priority available device for both input and output.
 
-**Repository**: [https://github.com/hugoh/AutoAudioSwitcher.spoon](https://github.com/hugoh/AutoAudioSwitcher.spoon)
+**Repository**: [https://github.com/hugoh/AudioPilot.spoon](https://github.com/hugoh/AudioPilot.spoon)
 
 ## Features
 
@@ -23,7 +23,7 @@ If you're looking for other solutions in this space, consider:
 - [AudioSwitcher](https://audioswitcher.macupdate.com) - Native macOS app
 - [Ears](https://retina.studio/ears/) - Lightweight audio device switcher
 
-AutoAudioSwitcher aims to provide a Hammerspoon-powered, priority-driven, fully configurable option.
+AudioPilot aims to provide a Hammerspoon-powered, priority-driven, fully configurable option.
 
 ## Installation
 
@@ -31,8 +31,8 @@ Ensure you have [Hammerspoon](https://www.hammerspoon.org) installed, then choos
 
 ### Release zip (recommended)
 
-1. Download `AutoAudioSwitcher.spoon.zip` from the [latest release](https://github.com/hugoh/AutoAudioSwitcher.spoon/releases/latest)
-2. Unzip — this produces an `AutoAudioSwitcher.spoon` folder
+1. Download `AudioPilot.spoon.zip` from the [latest release](https://github.com/hugoh/AudioPilot.spoon/releases/latest)
+2. Unzip — this produces an `AudioPilot.spoon` folder
 3. Move it to `~/.hammerspoon/Spoons/`
 4. Reload Hammerspoon (menu bar icon → Reload Config, or run `hs.reload()` in the console)
 
@@ -40,7 +40,7 @@ Ensure you have [Hammerspoon](https://www.hammerspoon.org) installed, then choos
 
 ```lua
 spoon.SpoonInstall:installSpoonFromZip(
-  "https://github.com/hugoh/AutoAudioSwitcher.spoon/releases/latest/download/AutoAudioSwitcher.spoon.zip"
+  "https://github.com/hugoh/AudioPilot.spoon/releases/latest/download/AudioPilot.spoon.zip"
 )
 ```
 
@@ -48,7 +48,7 @@ spoon.SpoonInstall:installSpoonFromZip(
 
 ```bash
 cd ~/.hammerspoon/Spoons
-git clone https://github.com/hugoh/AutoAudioSwitcher.spoon.git
+git clone https://github.com/hugoh/AudioPilot.spoon.git
 ```
 
 ## Configuration
@@ -56,11 +56,11 @@ git clone https://github.com/hugoh/AutoAudioSwitcher.spoon.git
 Add the following to your `~/.hammerspoon/init.lua`:
 
 ```lua
-hs.loadSpoon("AutoAudioSwitcher")
-spoon.AutoAudioSwitcher:start()
+hs.loadSpoon("AudioPilot")
+spoon.AudioPilot:start()
 ```
 
-On first launch, a default config file is created at `~/.config/AutoAudioSwitcher/config.json`. Edit it to set your device priorities:
+On first launch, a default config file is created at `~/.config/AudioPilot/config.json`. Edit it to set your device priorities:
 
 ```json
 {
@@ -80,8 +80,8 @@ On first launch, a default config file is created at `~/.config/AutoAudioSwitche
 To change the config file location:
 
 ```lua
-spoon.AutoAudioSwitcher.configPath = "/path/to/your/config.json"
-spoon.AutoAudioSwitcher:start()
+spoon.AudioPilot.configPath = "/path/to/your/config.json"
+spoon.AudioPilot:start()
 ```
 
 ## Menu Bar
@@ -97,7 +97,7 @@ Click the 🔊 icon to see:
 
 ## How It Works
 
-- On startup, AutoAudioSwitcher loads your config and immediately enforces your priorities
+- On startup, AudioPilot loads your config and immediately enforces your priorities
 - Whenever a device is connected or disconnected, it walks the priority list and switches to the first available device
 - Manual changes (via System Settings or another app) are respected until the next connect/disconnect event
 - New devices are automatically added to `knownDevices` in the config so you can later add them to a priority list
