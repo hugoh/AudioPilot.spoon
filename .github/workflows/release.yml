@@ -21,6 +21,13 @@ jobs:
         with:
           cache: false
 
+      - name: Update version in init.lua
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          VERSION=${TAG_NAME#v}
+          sed -i "s/obj.version = \"[^\"]*\"/obj.version = \"$VERSION\"/" init.lua
+
       - name: Package Spoon
         run: mise run package
 
