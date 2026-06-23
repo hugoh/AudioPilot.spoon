@@ -37,11 +37,26 @@ before_each(function()
 				return true
 			end,
 			encode = function(t)
-				local parts = {}
-				for _, v in ipairs(t) do
-					table.insert(parts, '"' .. v .. '"')
+				local function serialize(v)
+					if type(v) == "table" then
+						if #v > 0 then
+							local parts = {}
+							for _, x in ipairs(v) do
+								table.insert(parts, serialize(x))
+							end
+							return "[" .. table.concat(parts, ",") .. "]"
+						else
+							local parts = {}
+							for k, x in pairs(v) do
+								table.insert(parts, '"' .. k .. '":' .. serialize(x))
+							end
+							return "{" .. table.concat(parts, ",") .. "}"
+						end
+					else
+						return '"' .. tostring(v) .. '"'
+					end
 				end
-				return "[" .. table.concat(parts, ",") .. "]"
+				return serialize(t)
 			end,
 		},
 		screen = {

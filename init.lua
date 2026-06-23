@@ -1,3 +1,5 @@
+local _spoonPath = debug.getinfo(1, "S").source:sub(2):match("(.*/)") or "./"
+
 local obj = {}
 obj.__index = obj
 
@@ -201,87 +203,21 @@ function obj:_buildEditorHTML()
 		if not prioritySet[v] then table.insert(inputUnranked, v) end
 	end
 
-	-- luacheck: push ignore 631
-	-- stylua: ignore
-	return [[<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><title>Audio Device Priorities</title>
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:13px;background:#f5f5f7;color:#1d1d1f;padding:16px;-webkit-user-select:none}
-h1{font-size:17px;font-weight:600;margin-bottom:14px}
-.lbl{font-size:11px;font-weight:600;text-transform:uppercase;color:#6e6e73;letter-spacing:.05em;margin:10px 0 3px}
-.card{background:#fff;border-radius:10px;border:1px solid rgba(0,0,0,.08);overflow:hidden;min-height:34px}
-.item{display:flex;align-items:center;padding:7px 12px;border-bottom:1px solid rgba(0,0,0,.06);gap:8px}
-.item:last-child{border-bottom:none}
-.pi{cursor:grab}.pi:active{cursor:grabbing}
-.handle{color:#c0c0c0;font-size:12px;flex-shrink:0}
-.name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.btn{background:none;border:none;cursor:pointer;font-size:15px;line-height:1;padding:0 2px;flex-shrink:0}
-.rbtn{color:#ff3b30}.rbtn:hover{color:#c00}
-.abtn{color:#007aff}.abtn:hover{color:#005bcc}
-.empty{padding:10px 12px;color:#aeaeb2;font-style:italic}
-.footer{display:flex;justify-content:flex-end;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid rgba(0,0,0,.08)}
-.bc{padding:5px 16px;border-radius:6px;border:1px solid #d2d2d7;background:#fff;cursor:pointer;font-size:13px}
-.bc:hover{background:#f0f0f5}
-.bs{padding:5px 16px;border-radius:6px;border:none;background:#007aff;color:#fff;cursor:pointer;font-size:13px;font-weight:500}
-.bs:hover{background:#005bcc}
-</style>
-</head><body>
-<h1>Audio Device Priorities</h1>
-<div class="lbl">Output Priority</div><div class="card" id="op"></div>
-<div class="lbl">Other Known Output Devices</div><div class="card" id="ou"></div>
-<div class="lbl" style="margin-top:14px">Input Priority</div><div class="card" id="ip"></div>
-<div class="lbl">Other Known Input Devices</div><div class="card" id="iu"></div>
-<div class="footer"><button class="bc" id="cc">Cancel</button><button class="bs" id="sc">Save</button></div>
-<script>
-const state={output:{priority:]] .. hs.json.encode(self._config.outputPriority)
-		.. [[,unranked:]] .. hs.json.encode(outputUnranked)
-		.. [[},input:{priority:]] .. hs.json.encode(self._config.inputPriority)
-		.. [[,unranked:]] .. hs.json.encode(inputUnranked)
-		.. [[}};
-function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
-function getOrder(id){return[...document.getElementById(id).querySelectorAll('.pi')].map(e=>e.dataset.name)}
-function syncDOM(){state.output.priority=getOrder('op');state.input.priority=getOrder('ip')}
-let src=null;
-function render(id,items,type,pri){
-  const el=document.getElementById(id);el.innerHTML='';
-  if(!items.length){el.innerHTML='<div class="empty">'+(pri?'No devices ranked yet':'No other known devices')+'</div>';return}
-  items.forEach(n=>{
-    const d=document.createElement('div');
-    d.className='item'+(pri?' pi':'');d.dataset.name=n;
-    if(pri){
-      d.draggable=true;
-      d.innerHTML='<span class="handle">⠿</span><span class="name">'+esc(n)+'</span><button class="btn rbtn" title="Remove">✕</button>';
-      d.addEventListener('dragstart',e=>{src=d;e.dataTransfer.effectAllowed='move';d.style.opacity='.4'});
-      d.addEventListener('dragover',e=>{
-        e.preventDefault();if(src===d)return;
-        const r=d.getBoundingClientRect();
-        d.parentNode.insertBefore(src,e.clientY<r.top+r.height/2?d:d.nextSibling);
-      });
-      d.addEventListener('drop',e=>e.preventDefault());
-      d.addEventListener('dragend',()=>{d.style.opacity='';src=null});
-      d.querySelector('.rbtn').addEventListener('click',()=>{syncDOM();state[type].priority=state[type].priority.filter(x=>x!==n);state[type].unranked.push(n);renderAll()});
-    }else{
-      d.innerHTML='<span class="name">'+esc(n)+'</span><button class="btn abtn" title="Add to priority">＋</button>';
-      d.querySelector('.abtn').addEventListener('click',()=>{syncDOM();state[type].unranked=state[type].unranked.filter(x=>x!==n);state[type].priority.push(n);renderAll()});
-    }
-    el.appendChild(d);
-  });
-  if(pri){
-    el.addEventListener('dragover',e=>{if(e.target===el||e.target.classList.contains('empty')){e.preventDefault();if(src)el.appendChild(src)}});
-    el.addEventListener('drop',e=>e.preventDefault());
-  }
-}
-function renderAll(){render('op',state.output.priority,'output',true);render('ou',state.output.unranked,'output',false);render('ip',state.input.priority,'input',true);render('iu',state.input.unranked,'input',false)}
-document.getElementById('sc').addEventListener('click',()=>{
-  webkit.messageHandlers.AutoAudioSwitcherEditor.postMessage({action:'save',outputPriority:getOrder('op'),inputPriority:getOrder('ip')});
-});
-document.getElementById('cc').addEventListener('click',()=>{
-  webkit.messageHandlers.AutoAudioSwitcherEditor.postMessage({action:'cancel'});
-});
-renderAll();
-</script></body></html>]]
-	-- luacheck: pop
+	local initScript = "<script>window.__initialState="
+		.. hs.json.encode({
+			output = { priority = self._config.outputPriority, unranked = outputUnranked },
+			input = { priority = self._config.inputPriority, unranked = inputUnranked },
+		})
+		.. ";</script>"
+
+	local f = io.open(_spoonPath .. "editor.html")
+	if not f then
+		self.log.e("editor.html not found at " .. _spoonPath)
+		return ""
+	end
+	local html = f:read("*all")
+	f:close()
+	return (html:gsub("</head>", initScript .. "</head>", 1))
 end
 
 function obj:openEditor()
