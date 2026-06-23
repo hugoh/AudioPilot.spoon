@@ -15,8 +15,8 @@ A sound-related icon should be shown in the menu bar. When clicked, the menu sho
 
 Inspiration:
 
-* https://audioswitcher.macupdate.com
-* https://retina.studio/ears/
+- <https://audioswitcher.macupdate.com>
+- <https://retina.studio/ears/>
 
 ## Code
 

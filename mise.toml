@@ -1,0 +1,28 @@
+[tools]
+actionlint = "latest"
+dprint = "latest"
+ghalint = "latest"
+gitleaks = "latest"
+hk = "latest"
+lua = "5.4"
+rumdl = "latest"
+shellcheck = "latest"
+shfmt = "latest"
+stylua = "latest"
+taplo = "latest"
+tombi = "latest"
+typos = "latest"
+# yamllint = "latest"
+zizmor = "latest"
+
+[tasks.test]
+run = "busted test_spec.lua --verbose"
+
+[hooks]
+postinstall = ["luarocks install busted", "luarocks install luacheck"]
+
+[settings]
+experimental = true # for hooks
+
+[env]
+HK_PKL_BACKEND = "pklr"

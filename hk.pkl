@@ -1,0 +1,41 @@
+amends "package://github.com/jdx/hk/releases/download/v1.43.0/hk@1.43.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.43.0/hk@1.43.0#/Builtins.pkl"
+
+local linters = new Mapping<String, Step> {
+    ["actions"] = Builtins.actionlint
+    ["conflicts"] = Builtins.check_merge_conflict
+    ["case-conflict"] = Builtins.check_case_conflict
+    ["large-files"] = Builtins.check_added_large_files
+    ["executables"] = Builtins.check_executables_have_shebangs
+    ["symlinks"] = Builtins.check_symlinks
+    ["dprint"] = Builtins.dprint
+    ["leaks"] = Builtins.gitleaks
+    ["ghalint"] = Builtins.ghalint_workflow
+    ["lua"] = Builtins.luacheck
+    ["markdown"] = Builtins.rumdl
+    ["mise"] = Builtins.mise
+    ["shfmt"] = Builtins.shfmt
+    ["stylua"] = Builtins.stylua
+    ["toml"] = Builtins.tombi
+    ["typos"] = Builtins.typos
+    // ["yaml"] = Builtins.yamllint
+    ["workflows"] = Builtins.zizmor
+}
+
+hooks {
+    ["pre-commit"] {
+        fix = true
+        stash = "git"
+        steps = linters
+    }
+    ["pre-push"] {
+        steps = linters
+    }
+    ["check"] {
+        steps = linters
+    }
+    ["fix"] {
+        fix = true
+        steps = linters
+    }
+}
