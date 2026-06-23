@@ -1,38 +1,39 @@
 <!DOCTYPE html>
-<html data-theme="light">
+<html>
   <head>
     <meta charset="UTF-8" />
     <title>Audio Device Priorities</title>
-    <link rel="stylesheet" href="vendor/pico.classless.min.css" />
     <script src="vendor/Sortable.min.js"></script>
     <style>
+    :root {
+      color-scheme: light dark;
+    }
     body {
-      -webkit-user-select: none;
-      font-size: 13px;
+      font: -apple-system-body;
       padding: 16px;
+      -webkit-user-select: none;
     }
-    h1 {
-      font-size: 17px;
-      margin-bottom: 14px;
-    }
-    .lbl {
+    label {
+      color: GrayText;
+      display: block;
       font-size: 11px;
       font-weight: 600;
-      text-transform: uppercase;
-      color: var(--pico-muted-color);
       letter-spacing: 0.05em;
       margin: 10px 0 3px;
+      text-transform: uppercase;
     }
     article {
+      border: 1px solid color-mix(in srgb, CanvasText 15%, transparent);
+      border-radius: 8px;
+      margin-bottom: 12px;
       padding: 0;
-      margin-bottom: 0;
     }
     .item {
-      display: flex;
       align-items: center;
+      border-bottom: 1px solid color-mix(in srgb, CanvasText 10%, transparent);
+      display: flex;
       gap: 8px;
       padding: 7px 12px;
-      border-bottom: 1px solid var(--pico-muted-border-color);
     }
     .item:last-child {
       border-bottom: none;
@@ -44,9 +45,9 @@
       cursor: grabbing;
     }
     .handle {
-      color: var(--pico-muted-color);
-      font-size: 12px;
+      color: GrayText;
       flex-shrink: 0;
+      font-size: 12px;
     }
     .name {
       flex: 1;
@@ -55,55 +56,47 @@
       white-space: nowrap;
     }
     .empty {
-      padding: 10px 12px;
-      color: var(--pico-muted-color);
+      color: GrayText;
       font-style: italic;
+      padding: 10px 12px;
     }
     .btn {
-      background: none;
-      border: none;
-      box-shadow: none;
+      all: unset;
       cursor: pointer;
       flex-shrink: 0;
       font-size: 15px;
-      line-height: 1;
-      margin: 0;
       padding: 0 2px;
     }
     .rbtn {
-      color: var(--pico-del-color, #c00);
+      color: #e53935;
     }
     .abtn {
-      color: var(--pico-primary);
+      color: AccentColor;
     }
-    .footer {
-      border-top: 1px solid var(--pico-muted-border-color);
+    footer {
+      border-top: 1px solid color-mix(in srgb, CanvasText 15%, transparent);
       display: flex;
       gap: 8px;
       justify-content: flex-end;
-      margin-top: 14px;
+      margin-top: 12px;
       padding-top: 12px;
-    }
-    .footer button {
-      margin-bottom: 0;
-      width: auto;
     }
     </style>
   </head>
   <body>
-    <h1>Audio Device Priorities</h1>
-    <div class="lbl">Output Priority</div>
+    <h3>Audio Device Priorities</h3>
+    <label>Output Priority</label>
     <article id="op"></article>
-    <div class="lbl">Other Known Output Devices</div>
+    <label>Other Known Output Devices</label>
     <article id="ou"></article>
-    <div class="lbl" style="margin-top: 14px">Input Priority</div>
+    <label>Input Priority</label>
     <article id="ip"></article>
-    <div class="lbl">Other Known Input Devices</div>
+    <label>Other Known Input Devices</label>
     <article id="iu"></article>
-    <div class="footer">
-      <button id="cc" class="secondary">Cancel</button>
+    <footer>
+      <button id="cc">Cancel</button>
       <button id="sc">Save</button>
-    </div>
+    </footer>
     <script>
     const state = window.__initialState || {
         output: { priority: [], unranked: [] },

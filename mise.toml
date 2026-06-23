@@ -19,8 +19,8 @@ zizmor = "latest"
 [tasks.vendor]
 run = [
   "npm install",
+  "rm -rf vendor",
   "mkdir -p vendor",
-  "cp node_modules/@picocss/pico/css/pico.classless.min.css vendor/pico.classless.min.css",
   "cp node_modules/sortablejs/Sortable.min.js vendor/Sortable.min.js",
 ]
 description = "Fetch CSS/JS dependencies into vendor/"
