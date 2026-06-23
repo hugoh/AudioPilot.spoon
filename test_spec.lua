@@ -36,6 +36,30 @@ before_each(function()
 				config_store[path] = data
 				return true
 			end,
+			encode = function(t)
+				local parts = {}
+				for _, v in ipairs(t) do
+					table.insert(parts, '"' .. v .. '"')
+				end
+				return "[" .. table.concat(parts, ",") .. "]"
+			end,
+		},
+		screen = {
+			mainScreen = function()
+				return { frame = function() return { x = 0, y = 0, w = 1440, h = 900 } end }
+			end,
+		},
+		webview = {
+			windowMasks = { titled = 1, closable = 2, resizable = 4 },
+			_lastWebview = nil,
+			_lastController = nil,
+			usercontent = {
+				new = function(_name)
+					local ctrl = {}
+					function ctrl:setCallback(fn) self._callback = fn end
+					return ctrl
+				end,
+			},
 		},
 		fs = { mkdir = function(_p) return true end },
 		open = function(_p) end,
@@ -74,6 +98,18 @@ before_each(function()
 		return n
 	end
 
+	mock_hs.webview.new = function(_frame, _prefs, controller)
+		local wv = {}
+		function wv:html(h) self._html = h end
+		function wv:show() self._visible = true end
+		function wv:delete() self._deleted = true end
+		function wv.windowStyle(_self, _m) end
+		function wv:windowCallback(fn) self._windowCb = fn end
+		mock_hs.webview._lastWebview = wv
+		mock_hs.webview._lastController = controller
+		return wv
+	end
+
 	mock_hs._setConfig = function(path, cfg) config_store[path] = cfg end
 
 	package.loaded.hs = nil
@@ -109,11 +145,15 @@ describe("AutoAudioSwitcher", function()
 			assert.are.equal("function", type(AutoAudioSwitcher.start))
 			assert.are.equal("function", type(AutoAudioSwitcher.stop))
 			assert.are.equal("function", type(AutoAudioSwitcher.openConfig))
+			assert.are.equal("function", type(AutoAudioSwitcher.openEditor))
+			assert.are.equal("function", type(AutoAudioSwitcher._buildEditorHTML))
 		end)
 
 		it("initializes with nil menu", function() assert.is_nil(AutoAudioSwitcher._menu) end)
 
 		it("initializes with nil config", function() assert.is_nil(AutoAudioSwitcher._config) end)
+
+		it("initializes with nil editor", function() assert.is_nil(AutoAudioSwitcher._editor) end)
 
 		it("has logger instance", function() assert.is.table(AutoAudioSwitcher.log) end)
 	end)
@@ -429,8 +469,13 @@ describe("AutoAudioSwitcher", function()
 			assert.is_not_nil(item)
 		end)
 
-		it("menu contains Edit Config item", function()
-			local item = findMenuItem(AutoAudioSwitcher._menu._menuItems, "Edit Config")
+		it("menu contains Edit Priorities item", function()
+			local item = findMenuItem(AutoAudioSwitcher._menu._menuItems, "Edit Priorities")
+			assert.is_not_nil(item)
+		end)
+
+		it("menu contains Edit Config File item", function()
+			local item = findMenuItem(AutoAudioSwitcher._menu._menuItems, "Edit Config File")
 			assert.is_not_nil(item)
 		end)
 
@@ -449,18 +494,176 @@ describe("AutoAudioSwitcher", function()
 			assert.is_true(hasInput)
 		end)
 
-		it("Edit Config item calls hs.open with configPath", function()
+		it("Edit Config File item calls hs.open with configPath", function()
 			local openedPath = nil
 			mock_hs.open = function(p) openedPath = p end
-			local item = findMenuItem(AutoAudioSwitcher._menu._menuItems, "Edit Config")
+			local item = findMenuItem(AutoAudioSwitcher._menu._menuItems, "Edit Config File")
 			assert.is_not_nil(item)
 			item.fn()
 			assert.are.equal(AutoAudioSwitcher.configPath, openedPath)
 		end)
 
+		it("Edit Priorities item calls openEditor", function()
+			local editorOpened = false
+			AutoAudioSwitcher.openEditor = function(_self) editorOpened = true end
+			local item = findMenuItem(AutoAudioSwitcher._menu._menuItems, "Edit Priorities")
+			assert.is_not_nil(item)
+			item.fn()
+			assert.is_true(editorOpened)
+		end)
+
 		it("does nothing when menu is nil", function()
 			AutoAudioSwitcher._menu = nil
 			assert.has_no.errors(function() AutoAudioSwitcher:updateMenu() end)
+		end)
+	end)
+
+	describe("_buildEditorHTML", function()
+		before_each(function()
+			AutoAudioSwitcher:loadConfig()
+			AutoAudioSwitcher._config.outputPriority = { "Speakers" }
+			AutoAudioSwitcher._config.inputPriority = { "Microphone" }
+			AutoAudioSwitcher._config.knownDevices.output = { "Speakers", "Headphones" }
+			AutoAudioSwitcher._config.knownDevices.input = { "Microphone", "ExtraMic" }
+		end)
+
+		it("returns a string", function()
+			local html = AutoAudioSwitcher:_buildEditorHTML()
+			assert.is.string(html)
+		end)
+
+		it("contains output priority device name", function()
+			local html = AutoAudioSwitcher:_buildEditorHTML()
+			assert.truthy(html:find("Speakers", 1, true))
+		end)
+
+		it("contains input priority device name", function()
+			local html = AutoAudioSwitcher:_buildEditorHTML()
+			assert.truthy(html:find("Microphone", 1, true))
+		end)
+
+		it("contains unranked known output device", function()
+			local html = AutoAudioSwitcher:_buildEditorHTML()
+			assert.truthy(html:find("Headphones", 1, true))
+		end)
+
+		it("does not include ranked device in unranked output list", function()
+			local html = AutoAudioSwitcher:_buildEditorHTML()
+			local count = 0
+			local pos = 1
+			while true do
+				local s, e = html:find('"Speakers"', pos, true)
+				if not s then break end
+				count = count + 1
+				pos = e + 1
+			end
+			assert.are.equal(1, count)
+		end)
+	end)
+
+	describe("openEditor", function()
+		before_each(function()
+			AutoAudioSwitcher:loadConfig()
+			AutoAudioSwitcher._menu = mock_hs.menubar.new()
+		end)
+
+		it("creates a webview on first call", function()
+			AutoAudioSwitcher:openEditor()
+			assert.is_not_nil(AutoAudioSwitcher._editor)
+		end)
+
+		it("shows the webview", function()
+			AutoAudioSwitcher:openEditor()
+			assert.is_true(mock_hs.webview._lastWebview._visible)
+		end)
+
+		it("does not create a second webview when already open", function()
+			AutoAudioSwitcher:openEditor()
+			local first = AutoAudioSwitcher._editor
+			AutoAudioSwitcher:openEditor()
+			assert.are.equal(first, AutoAudioSwitcher._editor)
+		end)
+
+		it("window closing callback sets _editor to nil", function()
+			AutoAudioSwitcher:openEditor()
+			local wv = mock_hs.webview._lastWebview
+			wv._windowCb("closing")
+			assert.is_nil(AutoAudioSwitcher._editor)
+		end)
+
+		it("save callback updates outputPriority", function()
+			AutoAudioSwitcher:openEditor()
+			local ctrl = mock_hs.webview._lastController
+			ctrl._callback({ body = { action = "save", outputPriority = { "NewOut" }, inputPriority = {} } })
+			assert.are.equal("NewOut", AutoAudioSwitcher._config.outputPriority[1])
+		end)
+
+		it("save callback updates inputPriority", function()
+			AutoAudioSwitcher:openEditor()
+			local ctrl = mock_hs.webview._lastController
+			ctrl._callback({ body = { action = "save", outputPriority = {}, inputPriority = { "NewMic" } } })
+			assert.are.equal("NewMic", AutoAudioSwitcher._config.inputPriority[1])
+		end)
+
+		it("save callback calls saveConfig", function()
+			AutoAudioSwitcher:openEditor()
+			local writeCount = 0
+			local origWrite = mock_hs.json.write
+			mock_hs.json.write = function(data, path, pretty)
+				writeCount = writeCount + 1
+				return origWrite(data, path, pretty)
+			end
+			local ctrl = mock_hs.webview._lastController
+			ctrl._callback({ body = { action = "save", outputPriority = {}, inputPriority = {} } })
+			assert.truthy(writeCount > 0)
+		end)
+
+		it("save callback calls selectBestDevice for output", function()
+			local calls = {}
+			AutoAudioSwitcher:openEditor()
+			AutoAudioSwitcher.selectBestDevice = function(_self, dt) table.insert(calls, dt) end
+			local ctrl = mock_hs.webview._lastController
+			ctrl._callback({ body = { action = "save", outputPriority = {}, inputPriority = {} } })
+			local found = false
+			for _, v in ipairs(calls) do
+				if v == "output" then found = true end
+			end
+			assert.is_true(found)
+		end)
+
+		it("save callback calls selectBestDevice for input", function()
+			local calls = {}
+			AutoAudioSwitcher:openEditor()
+			AutoAudioSwitcher.selectBestDevice = function(_self, dt) table.insert(calls, dt) end
+			local ctrl = mock_hs.webview._lastController
+			ctrl._callback({ body = { action = "save", outputPriority = {}, inputPriority = {} } })
+			local found = false
+			for _, v in ipairs(calls) do
+				if v == "input" then found = true end
+			end
+			assert.is_true(found)
+		end)
+
+		it("save callback deletes webview and sets _editor to nil", function()
+			AutoAudioSwitcher:openEditor()
+			local ctrl = mock_hs.webview._lastController
+			ctrl._callback({ body = { action = "save", outputPriority = {}, inputPriority = {} } })
+			assert.is_nil(AutoAudioSwitcher._editor)
+		end)
+
+		it("cancel callback does not modify config", function()
+			AutoAudioSwitcher._config.outputPriority = { "Original" }
+			AutoAudioSwitcher:openEditor()
+			local ctrl = mock_hs.webview._lastController
+			ctrl._callback({ body = { action = "cancel" } })
+			assert.are.equal("Original", AutoAudioSwitcher._config.outputPriority[1])
+		end)
+
+		it("cancel callback deletes webview and sets _editor to nil", function()
+			AutoAudioSwitcher:openEditor()
+			local ctrl = mock_hs.webview._lastController
+			ctrl._callback({ body = { action = "cancel" } })
+			assert.is_nil(AutoAudioSwitcher._editor)
 		end)
 	end)
 
