@@ -615,6 +615,7 @@ function obj:stop()
 		self._notifyTimer:stop()
 		self._notifyTimer = nil
 	end
+	self:_flushNotify()
 	if self._menu then
 		self._menu:delete()
 		self._menu = nil

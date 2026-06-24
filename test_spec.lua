@@ -506,7 +506,7 @@ describe("AudioPilot", function()
 				assert.are.equal("DevA", AudioPilot._lastAnnounced.output)
 			end)
 
-			it("stop() cancels a pending timer so no late notification fires", function()
+			it("stop() flushes pending notification and cancels the timer", function()
 				AudioPilot._menu = mock_hs.menubar.new()
 				AudioPilot:loadConfig()
 				makeMockDevice("DevA", true)
@@ -516,10 +516,11 @@ describe("AudioPilot", function()
 				AudioPilot._notifyTimer = nil
 				AudioPilot:selectBestDevice("output")
 				AudioPilot:stop()
-				-- Simulate the timer firing after stop — should be cancelled
+				-- stop() flushes the buffer so the notification is sent immediately
+				assert.are.equal(1, #mock_hs.notify._sent)
+				-- Timer is cancelled so it cannot fire a second notification later
 				local t = mock_hs.timer._pending
 				assert.is_true(t._cancelled)
-				assert.are.equal(0, #mock_hs.notify._sent)
 			end)
 		end)
 	end)
