@@ -1073,7 +1073,7 @@ describe("AudioPilot", function()
 			assert.are.equal(n, #AudioPilot._config.knownDevices.output)
 		end)
 
-		it("ignores unparseable data without error", function()
+		it("ignores unparsable data without error", function()
 			mock_hs.json.decode = function(_s) error("bad json") end
 			assert.has_no.errors(function() AudioPilot:mergeBluetoothDevices("garbage") end)
 		end)

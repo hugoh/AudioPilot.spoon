@@ -1,6 +1,6 @@
 [tools]
 node = "lts"
-"aqua:cli/git-cliff" = "latest"
+"github:orhun/git-cliff" = "latest"
 actionlint = "latest"
 dprint = "latest"
 ghalint = "latest"
