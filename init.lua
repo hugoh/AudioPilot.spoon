@@ -10,6 +10,7 @@ obj.license = "MIT"
 obj.homepage = "https://github.com/hugoh/AudioPilot.spoon"
 
 obj.configPath = os.getenv("HOME") .. "/.config/AudioPilot/config.json"
+obj.notifyDelay = 5 -- seconds to wait before emitting a coalesced notification
 
 obj._menu = nil
 obj._config = nil
@@ -261,17 +262,46 @@ function obj:scanBluetoothDevices()
 	if task then task:start() end
 end
 
--- Defined with a dot (ignored `_` receiver) since it uses no instance state but is
--- still called as self:notifyChange(...) for consistency with the other methods.
-function obj.notifyChange(_, deviceType, name)
-	hs.notify.new({ title = "AudioPilot", informativeText = deviceType .. " → " .. name }):send()
+-- Stage a device-change notification for deviceType. Multiple calls within
+-- notifyDelay seconds are coalesced: the "from" uid is fixed at the first call
+-- and the "to" is updated on each call, so only the net change is reported.
+function obj:_bufferNotify(deviceType, fromUid, toUid, toName)
+	local buf = self._notifyBuffer[deviceType]
+	if buf then
+		buf.to = toUid
+		buf.toName = toName
+	else
+		self._notifyBuffer[deviceType] = { from = fromUid, to = toUid, toName = toName }
+	end
+	if self._notifyTimer then self._notifyTimer:stop() end
+	local self_ref = self
+	self._notifyTimer = hs.timer.doAfter(self.notifyDelay, function() self_ref:_flushNotify() end)
+end
+
+-- Emit one notification covering all directions that moved since the last flush.
+-- Directions whose net change is zero (from == to) are silently dropped.
+function obj:_flushNotify()
+	self._notifyTimer = nil
+	local lines = {}
+	for _, dir in ipairs({ "output", "input" }) do
+		local buf = self._notifyBuffer[dir]
+		if buf then
+			if buf.from ~= buf.to then
+				lines[#lines + 1] = dir .. " → " .. buf.toName
+				self._lastAnnounced[dir] = buf.to
+			end
+			self._notifyBuffer[dir] = nil
+		end
+	end
+	if #lines > 0 then hs.notify.new({ title = "AudioPilot", informativeText = table.concat(lines, "\n") }):send() end
 end
 
 function obj:selectBestDevice(deviceType)
 	local available = self:getAvailableDevices()
 	local priorities = self._config[deviceType .. "Priority"] or {}
 	local availableSet = available[deviceType]
-	self._lastBest = self._lastBest or { output = nil, input = nil }
+	if not self._lastAnnounced then self._lastAnnounced = { output = nil, input = nil } end
+	if not self._notifyBuffer then self._notifyBuffer = { output = nil, input = nil } end
 
 	for _, uid in ipairs(priorities) do
 		local name = availableSet[uid]
@@ -284,14 +314,12 @@ function obj:selectBestDevice(deviceType)
 			end
 
 			if current and current:uid() == uid then
-				-- Already on the best device -- we switched earlier, or macOS did it
-				-- automatically on connect. Announce it once (when it differs from
-				-- what we last reported) so the user learns of macOS-driven switches,
-				-- without re-notifying on every unrelated device-list change.
-				if self._lastBest[deviceType] ~= uid then
+				-- Already on the best device — we switched earlier, or macOS did it
+				-- automatically on connect. Buffer a notification if the uid differs
+				-- from what we last announced; _flushNotify will coalesce rapid changes.
+				if self._lastAnnounced[deviceType] ~= uid then
 					self.log.i(deviceType .. " is now on best device: " .. name)
-					self._lastBest[deviceType] = uid
-					self:notifyChange(deviceType, name)
+					self:_bufferNotify(deviceType, self._lastAnnounced[deviceType], uid, name)
 					self:updateMenu()
 				else
 					self.log.d(deviceType .. " already set to best: " .. name)
@@ -314,8 +342,7 @@ function obj:selectBestDevice(deviceType)
 						dev:setDefaultInputDevice()
 					end
 					self.log.i("Switched " .. deviceType .. " to: " .. name)
-					self._lastBest[deviceType] = uid
-					self:notifyChange(deviceType, name)
+					self:_bufferNotify(deviceType, self._lastAnnounced[deviceType], uid, name)
 					self:updateMenu()
 					return
 				end
@@ -566,10 +593,12 @@ function obj:start()
 	-- device connected during reload) still differs from these and notifies.
 	local curOut = hs.audiodevice.defaultOutputDevice()
 	local curIn = hs.audiodevice.defaultInputDevice()
-	self._lastBest = {
+	self._lastAnnounced = {
 		output = curOut and curOut:uid() or nil,
 		input = curIn and curIn:uid() or nil,
 	}
+	self._notifyBuffer = { output = nil, input = nil }
+	self._notifyTimer = nil
 	self:selectBestDevice("output")
 	self:selectBestDevice("input")
 	self:updateMenu()
@@ -582,6 +611,10 @@ end
 
 function obj:stop()
 	hs.audiodevice.watcher.stop()
+	if self._notifyTimer then
+		self._notifyTimer:stop()
+		self._notifyTimer = nil
+	end
 	if self._menu then
 		self._menu:delete()
 		self._menu = nil

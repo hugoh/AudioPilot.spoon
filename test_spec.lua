@@ -105,6 +105,15 @@ before_each(function()
 		notify = {
 			_sent = {},
 		},
+		timer = {
+			_pending = nil,
+			doAfter = function(_delay, fn)
+				local t = { _fn = fn, _cancelled = false }
+				function t:stop() self._cancelled = true end
+				mock_hs.timer._pending = t
+				return t
+			end,
+		},
 		menubar = {
 			new = function()
 				local m = {}
@@ -163,6 +172,12 @@ before_each(function()
 
 	AudioPilot = dofile("init.lua")
 end)
+
+-- Fire the pending notify timer (simulates hs.timer.doAfter callback firing).
+local function fireNotifyTimer()
+	local t = mock_hs.timer._pending
+	if t and not t._cancelled then t._fn() end
+end
 
 after_each(function()
 	if AudioPilot._menu then AudioPilot:stop() end
@@ -389,12 +404,18 @@ describe("AudioPilot", function()
 	end)
 
 	describe("notifications", function()
-		before_each(function() AudioPilot:loadConfig() end)
+		before_each(function()
+			AudioPilot:loadConfig()
+			AudioPilot._lastAnnounced = { output = nil, input = nil }
+			AudioPilot._notifyBuffer = { output = nil, input = nil }
+			AudioPilot._notifyTimer = nil
+		end)
 
 		it("sends notification when switching output device", function()
 			makeMockDevice("DevA", true)
 			AudioPilot._config.outputPriority = { "DevA" }
 			AudioPilot:selectBestDevice("output")
+			fireNotifyTimer()
 			assert.are.equal(1, #mock_hs.notify._sent)
 			assert.are.equal("AudioPilot", mock_hs.notify._sent[1].title)
 			assert.truthy(mock_hs.notify._sent[1].informativeText:find("DevA"))
@@ -404,6 +425,7 @@ describe("AudioPilot", function()
 			makeMockDevice("MicA", false)
 			AudioPilot._config.inputPriority = { "MicA" }
 			AudioPilot:selectBestDevice("input")
+			fireNotifyTimer()
 			assert.are.equal(1, #mock_hs.notify._sent)
 			assert.truthy(mock_hs.notify._sent[1].informativeText:find("MicA"))
 		end)
@@ -415,6 +437,7 @@ describe("AudioPilot", function()
 			mock_hs.audiodevice._defaultOutput = dev
 			AudioPilot._config.outputPriority = { "DevA" }
 			AudioPilot:selectBestDevice("output")
+			fireNotifyTimer()
 			assert.are.equal(1, #mock_hs.notify._sent)
 			assert.truthy(mock_hs.notify._sent[1].informativeText:find("DevA"))
 		end)
@@ -424,20 +447,80 @@ describe("AudioPilot", function()
 			mock_hs.audiodevice._defaultOutput = dev
 			AudioPilot._config.outputPriority = { "DevA" }
 			AudioPilot:selectBestDevice("output")
+			fireNotifyTimer()
 			AudioPilot:selectBestDevice("output")
 			AudioPilot:selectBestDevice("output")
+			fireNotifyTimer()
 			assert.are.equal(1, #mock_hs.notify._sent)
 		end)
 
 		it("does not notify when primed to the current best device", function()
-			-- start() primes _lastBest to the current defaults so a reload that is
-			-- already correct stays silent.
+			-- start() primes _lastAnnounced to the current defaults so a reload that
+			-- is already correct stays silent.
 			local dev = makeMockDevice("DevA", true)
 			mock_hs.audiodevice._defaultOutput = dev
 			AudioPilot._config.outputPriority = { "DevA" }
-			AudioPilot._lastBest = { output = "DevA", input = nil }
+			AudioPilot._lastAnnounced = { output = "DevA", input = nil }
 			AudioPilot:selectBestDevice("output")
+			fireNotifyTimer()
 			assert.are.equal(0, #mock_hs.notify._sent)
+		end)
+
+		describe("buffering", function()
+			it("coalesces output and input changes into one notification", function()
+				makeMockDevice("Speaker", true)
+				makeMockDevice("Mic", false)
+				AudioPilot._config.outputPriority = { "Speaker" }
+				AudioPilot._config.inputPriority = { "Mic" }
+				AudioPilot:selectBestDevice("output")
+				AudioPilot:selectBestDevice("input")
+				fireNotifyTimer()
+				assert.are.equal(1, #mock_hs.notify._sent)
+				local text = mock_hs.notify._sent[1].informativeText
+				assert.truthy(text:find("output"))
+				assert.truthy(text:find("Speaker"))
+				assert.truthy(text:find("input"))
+				assert.truthy(text:find("Mic"))
+			end)
+
+			it("suppresses notification when net change is zero", function()
+				-- A→B then B→A within the window: no net movement.
+				makeMockDevice("DevA", true)
+				makeMockDevice("DevB", true)
+				AudioPilot._lastAnnounced = { output = "DevA", input = nil }
+				AudioPilot._config.outputPriority = { "DevB" }
+				-- Buffer A→B
+				AudioPilot:_bufferNotify("output", "DevA", "DevB", "DevB")
+				-- Then buffer back to A (net zero)
+				AudioPilot:_bufferNotify("output", "DevA", "DevA", "DevA")
+				fireNotifyTimer()
+				assert.are.equal(0, #mock_hs.notify._sent)
+			end)
+
+			it("updates _lastAnnounced only after flush", function()
+				makeMockDevice("DevA", true)
+				AudioPilot._config.outputPriority = { "DevA" }
+				AudioPilot:selectBestDevice("output")
+				assert.is_nil(AudioPilot._lastAnnounced.output) -- not yet announced
+				fireNotifyTimer()
+				assert.are.equal("DevA", AudioPilot._lastAnnounced.output)
+			end)
+
+			it("stop() cancels a pending timer so no late notification fires", function()
+				AudioPilot._menu = mock_hs.menubar.new()
+				AudioPilot:loadConfig()
+				makeMockDevice("DevA", true)
+				AudioPilot._config.outputPriority = { "DevA" }
+				AudioPilot._lastAnnounced = { output = nil, input = nil }
+				AudioPilot._notifyBuffer = { output = nil, input = nil }
+				AudioPilot._notifyTimer = nil
+				AudioPilot:selectBestDevice("output")
+				AudioPilot:stop()
+				-- Simulate the timer firing after stop — should be cancelled
+				local t = mock_hs.timer._pending
+				assert.is_true(t._cancelled)
+				assert.are.equal(0, #mock_hs.notify._sent)
+			end)
 		end)
 	end)
 
