@@ -320,7 +320,6 @@ function obj:selectBestDevice(deviceType)
 				if self._lastAnnounced[deviceType] ~= uid then
 					self.log.i(deviceType .. " is now on best device: " .. name)
 					self:_bufferNotify(deviceType, self._lastAnnounced[deviceType], uid, name)
-					self:updateMenu()
 				else
 					self.log.d(deviceType .. " already set to best: " .. name)
 				end
@@ -343,7 +342,6 @@ function obj:selectBestDevice(deviceType)
 					end
 					self.log.i("Switched " .. deviceType .. " to: " .. name)
 					self:_bufferNotify(deviceType, self._lastAnnounced[deviceType], uid, name)
-					self:updateMenu()
 					return
 				end
 			end
@@ -420,6 +418,7 @@ function obj:updateMenu()
 		fn = function()
 			self_ref:selectBestDevice("output")
 			self_ref:selectBestDevice("input")
+			self_ref:updateMenu()
 		end,
 	})
 	table.insert(items, {
