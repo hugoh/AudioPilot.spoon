@@ -5,9 +5,11 @@ local function makeLogger()
 	return { i = function() end, w = function() end, d = function() end, v = function() end }
 end
 
-local function makeMockDevice(name, isOutput)
-	local d = { _name = name }
+local function makeMockDevice(name, isOutput, uid)
+	local d = { _name = name, _uid = uid or name }
 	function d:name() return self._name end
+	function d:uid() return self._uid end
+	function d:transportType() return self._transport end
 	function d:setDefaultOutputDevice() mock_hs.audiodevice._defaultOutput = self end
 	function d:setDefaultInputDevice() mock_hs.audiodevice._defaultInput = self end
 	if isOutput then
@@ -25,6 +27,13 @@ local function findMenuItem(items, titlePart)
 	return nil
 end
 
+local function findKnown(list, uid)
+	for _, v in ipairs(list) do
+		if v.uid == uid then return v end
+	end
+	return nil
+end
+
 before_each(function()
 	local config_store = {}
 
@@ -36,6 +45,9 @@ before_each(function()
 				config_store[path] = data
 				return true
 			end,
+			-- Tests that exercise Bluetooth parsing override this to return a
+			-- decoded fixture table (real JSON decoding is hs.json's concern).
+			decode = function(_s) return nil end,
 			encode = function(t)
 				local function serialize(v)
 					if type(v) == "table" then
@@ -77,6 +89,18 @@ before_each(function()
 			},
 		},
 		fs = { mkdir = function(_p) return true end },
+		task = {
+			_lastTask = nil,
+			new = function(_path, cb, _args)
+				local t = { _cb = cb, _started = false }
+				function t:start()
+					self._started = true
+					return self
+				end
+				mock_hs.task._lastTask = t
+				return t
+			end,
+		},
 		open = function(_p) end,
 		notify = {
 			_sent = {},
@@ -115,11 +139,17 @@ before_each(function()
 
 	mock_hs.webview.new = function(_frame, _prefs, controller)
 		local wv = {}
-		function wv:html(h) self._html = h end
+		function wv:html(h, _base) self._html = h end
 		function wv:show() self._visible = true end
 		function wv:delete() self._deleted = true end
 		function wv.windowStyle(_self, _m) end
 		function wv:windowCallback(fn) self._windowCb = fn end
+		function wv:allowTextEntry(v) self._textEntry = v end
+		function wv:navigationCallback(fn) self._navCb = fn end
+		function wv:bringToFront(_v) self._front = true end
+		function wv.hswindow()
+			return { focus = function() end }
+		end
 		mock_hs.webview._lastWebview = wv
 		mock_hs.webview._lastController = controller
 		return wv
@@ -260,21 +290,21 @@ describe("AudioPilot", function()
 		end)
 
 		it("updates knownDevices with newly seen output devices", function()
-			makeMockDevice("NewSpeakers", true)
+			makeMockDevice("NewSpeakers", true, "uidNewSpeakers")
 			AudioPilot:getAvailableDevices()
 			local found = false
 			for _, v in ipairs(AudioPilot._config.knownDevices.output) do
-				if v == "NewSpeakers" then found = true end
+				if v.uid == "uidNewSpeakers" and v.name == "NewSpeakers" then found = true end
 			end
 			assert.is_true(found)
 		end)
 
 		it("updates knownDevices with newly seen input devices", function()
-			makeMockDevice("NewMic", false)
+			makeMockDevice("NewMic", false, "uidNewMic")
 			AudioPilot:getAvailableDevices()
 			local found = false
 			for _, v in ipairs(AudioPilot._config.knownDevices.input) do
-				if v == "NewMic" then found = true end
+				if v.uid == "uidNewMic" and v.name == "NewMic" then found = true end
 			end
 			assert.is_true(found)
 		end)
@@ -288,9 +318,9 @@ describe("AudioPilot", function()
 		end)
 
 		it("does not save config when no new devices found", function()
-			makeMockDevice("KnownDevice", true)
+			makeMockDevice("KnownDevice", true, "uidKnown")
 			-- Pre-populate knownDevices
-			AudioPilot._config.knownDevices.output = { "KnownDevice" }
+			AudioPilot._config.knownDevices.output = { { uid = "uidKnown", name = "KnownDevice" } }
 			local writeCount = 0
 			mock_hs.json.write = function(_d, _p, _pp) writeCount = writeCount + 1 end
 			AudioPilot:getAvailableDevices()
@@ -535,10 +565,16 @@ describe("AudioPilot", function()
 	describe("_buildEditorHTML", function()
 		before_each(function()
 			AudioPilot:loadConfig()
-			AudioPilot._config.outputPriority = { "Speakers" }
-			AudioPilot._config.inputPriority = { "Microphone" }
-			AudioPilot._config.knownDevices.output = { "Speakers", "Headphones" }
-			AudioPilot._config.knownDevices.input = { "Microphone", "ExtraMic" }
+			AudioPilot._config.outputPriority = { "uidSpk" }
+			AudioPilot._config.inputPriority = { "uidMic" }
+			AudioPilot._config.knownDevices.output = {
+				{ uid = "uidSpk", name = "Speakers" },
+				{ uid = "uidHp", name = "Headphones" },
+			}
+			AudioPilot._config.knownDevices.input = {
+				{ uid = "uidMic", name = "Microphone" },
+				{ uid = "uidExtra", name = "ExtraMic" },
+			}
 		end)
 
 		it("returns a string", function()
@@ -561,12 +597,17 @@ describe("AudioPilot", function()
 			assert.truthy(html:find("Headphones", 1, true))
 		end)
 
+		it("carries the device uid", function()
+			local html = AudioPilot:_buildEditorHTML()
+			assert.truthy(html:find("uidSpk", 1, true))
+		end)
+
 		it("does not include ranked device in unranked output list", function()
 			local html = AudioPilot:_buildEditorHTML()
 			local count = 0
 			local pos = 1
 			while true do
-				local s, e = html:find('"Speakers"', pos, true)
+				local s, e = html:find('"uidSpk"', pos, true)
 				if not s then break end
 				count = count + 1
 				pos = e + 1
@@ -732,6 +773,170 @@ describe("AudioPilot", function()
 			AudioPilot:start()
 			AudioPilot:stop()
 			assert.is_nil(AudioPilot._menu)
+		end)
+
+		it("scans for Bluetooth devices on start", function()
+			AudioPilot:start()
+			assert.is_not_nil(mock_hs.task._lastTask)
+			assert.is_true(mock_hs.task._lastTask._started)
+		end)
+	end)
+
+	describe("uid-based matching", function()
+		before_each(function() AudioPilot:loadConfig() end)
+
+		it("switches by uid even when the device name changed", function()
+			makeMockDevice("New Name", true, "stableUid")
+			AudioPilot._config.outputPriority = { "stableUid" }
+			AudioPilot:selectBestDevice("output")
+			assert.are.equal("stableUid", mock_hs.audiodevice._defaultOutput:uid())
+		end)
+
+		it("distinguishes two devices that share a name", function()
+			makeMockDevice("USB Audio", true, "uidA")
+			local devB = makeMockDevice("USB Audio", true, "uidB")
+			AudioPilot._config.outputPriority = { "uidB" }
+			AudioPilot:selectBestDevice("output")
+			assert.are.equal(devB, mock_hs.audiodevice._defaultOutput)
+		end)
+
+		it("does not switch when the priority uid is not connected", function()
+			makeMockDevice("USB Audio", true, "uidA")
+			AudioPilot._config.outputPriority = { "uidB" } -- different uid, same name
+			AudioPilot:selectBestDevice("output")
+			assert.is_nil(mock_hs.audiodevice._defaultOutput)
+		end)
+
+		it("refreshes a stored name when the device is renamed", function()
+			makeMockDevice("Old Name", true, "uidR")
+			AudioPilot:getAvailableDevices()
+			mock_hs.audiodevice._outputDevices[1]._name = "New Name"
+			AudioPilot:getAvailableDevices()
+			local entry = findKnown(AudioPilot._config.knownDevices.output, "uidR")
+			assert.is_not_nil(entry)
+			assert.are.equal("New Name", entry.name)
+		end)
+	end)
+
+	describe("migrateConfig (legacy name-based config)", function()
+		it("converts known device names to uid entries for connected devices", function()
+			makeMockDevice("Speakers", true, "uidSpk")
+			mock_hs._setConfig(AudioPilot.configPath, {
+				outputPriority = {},
+				inputPriority = {},
+				knownDevices = { output = { "Speakers" }, input = {} },
+			})
+			AudioPilot:loadConfig()
+			assert.are.equal(1, #AudioPilot._config.knownDevices.output)
+			assert.are.equal("uidSpk", AudioPilot._config.knownDevices.output[1].uid)
+			assert.are.equal("Speakers", AudioPilot._config.knownDevices.output[1].name)
+		end)
+
+		it("converts name-based priority entries to uids", function()
+			makeMockDevice("Speakers", true, "uidSpk")
+			mock_hs._setConfig(AudioPilot.configPath, {
+				outputPriority = { "Speakers" },
+				inputPriority = {},
+				knownDevices = { output = { "Speakers" }, input = {} },
+			})
+			AudioPilot:loadConfig()
+			assert.are.equal("uidSpk", AudioPilot._config.outputPriority[1])
+		end)
+
+		it("drops unresolvable (disconnected) entries", function()
+			mock_hs._setConfig(AudioPilot.configPath, {
+				outputPriority = { "Ghost" },
+				inputPriority = {},
+				knownDevices = { output = { "Ghost" }, input = {} },
+			})
+			AudioPilot:loadConfig()
+			assert.are.equal(0, #AudioPilot._config.knownDevices.output)
+			assert.are.equal(0, #AudioPilot._config.outputPriority)
+		end)
+	end)
+
+	describe("mergeBluetoothDevices", function()
+		before_each(function()
+			AudioPilot:loadConfig()
+			mock_hs.json.decode = function(_s)
+				return {
+					SPBluetoothDataType = {
+						{
+							device_connected = {
+								{ ["Phone"] = { device_address = "74:42:18:CC:B2:D5" } },
+							},
+							device_not_connected = {
+								{
+									["Bose QC"] = { device_minorType = "Headset", device_address = "E4:58:BC:D4:81:B5" },
+								},
+								{
+									["AirPods"] = {
+										device_minorType = "Headphones",
+										device_address = "5C:52:30:DB:6E:80",
+									},
+								},
+								{
+									["Keyboard"] = {
+										device_minorType = "Keyboard",
+										device_address = "AA:BB:CC:DD:EE:FF",
+									},
+								},
+								{ ["No Addr"] = { device_minorType = "Speaker" } },
+							},
+						},
+					},
+				}
+			end
+		end)
+
+		it("adds a headset under both output and input by MAC-derived uid", function()
+			AudioPilot:mergeBluetoothDevices("ignored")
+			assert.is_not_nil(findKnown(AudioPilot._config.knownDevices.output, "E4-58-BC-D4-81-B5:output"))
+			assert.is_not_nil(findKnown(AudioPilot._config.knownDevices.input, "E4-58-BC-D4-81-B5:input"))
+		end)
+
+		it("stores the Bluetooth name for display", function()
+			AudioPilot:mergeBluetoothDevices("ignored")
+			local entry = findKnown(AudioPilot._config.knownDevices.output, "E4-58-BC-D4-81-B5:output")
+			assert.are.equal("Bose QC", entry.name)
+		end)
+
+		it("skips non-audio Bluetooth devices", function()
+			AudioPilot:mergeBluetoothDevices("ignored")
+			for _, v in ipairs(AudioPilot._config.knownDevices.output) do
+				assert.is_falsy(v.uid:find("AA-BB", 1, true))
+			end
+		end)
+
+		it("skips audio devices without an address", function()
+			AudioPilot:mergeBluetoothDevices("ignored")
+			for _, v in ipairs(AudioPilot._config.knownDevices.output) do
+				assert.are_not.equal("No Addr", v.name)
+			end
+		end)
+
+		it("does not duplicate entries on rescan", function()
+			AudioPilot:mergeBluetoothDevices("ignored")
+			local n = #AudioPilot._config.knownDevices.output
+			AudioPilot:mergeBluetoothDevices("ignored")
+			assert.are.equal(n, #AudioPilot._config.knownDevices.output)
+		end)
+
+		it("ignores unparseable data without error", function()
+			mock_hs.json.decode = function(_s) error("bad json") end
+			assert.has_no.errors(function() AudioPilot:mergeBluetoothDevices("garbage") end)
+		end)
+	end)
+
+	describe("menu (Bluetooth)", function()
+		it("contains a Rescan Bluetooth Devices item that triggers a scan", function()
+			AudioPilot:loadConfig()
+			AudioPilot._menu = mock_hs.menubar.new()
+			AudioPilot:updateMenu()
+			local item = findMenuItem(AudioPilot._menu._menuItems, "Rescan Bluetooth")
+			assert.is_not_nil(item)
+			item.fn()
+			assert.is_not_nil(mock_hs.task._lastTask)
 		end)
 	end)
 end)

@@ -98,9 +98,29 @@
       <button id="sc">Save</button>
     </footer>
     <script>
-    const state = window.__initialState || {
+    const raw = window.__initialState || {
         output: { priority: [], unranked: [] },
         input: { priority: [], unranked: [] },
+      };
+
+      // Lists are tracked by device uid; `names` maps uid -> display name. The
+      // injected state is { uid, name } objects; flatten to uid arrays here.
+      const names = {};
+      function toUids(list) {
+        return (list || []).map((d) => {
+          names[d.uid] = d.name;
+          return d.uid;
+        });
+      }
+      const state = {
+        output: {
+          priority: toUids(raw.output.priority),
+          unranked: toUids(raw.output.unranked),
+        },
+        input: {
+          priority: toUids(raw.input.priority),
+          unranked: toUids(raw.input.unranked),
+        },
       };
 
       function esc(s) {
@@ -112,7 +132,7 @@
 
       function getOrder(id) {
         return [...document.getElementById(id).querySelectorAll(".pi")].map(
-          (e) => e.dataset.name,
+          (e) => e.dataset.uid,
         );
       }
 
@@ -121,44 +141,45 @@
         state.input.priority = getOrder("ip");
       }
 
-      function render(id, items, type, pri) {
+      function render(id, uids, type, pri) {
         const el = document.getElementById(id);
         el.innerHTML = "";
-        if (!items.length) {
+        if (!uids.length) {
           el.innerHTML =
             '<div class="empty">' +
             (pri ? "No devices ranked yet" : "No other known devices") +
             "</div>";
           return;
         }
-        items.forEach((n) => {
+        uids.forEach((uid) => {
           const d = document.createElement("div");
           d.className = "item" + (pri ? " pi" : "");
-          d.dataset.name = n;
+          d.dataset.uid = uid;
+          const label = esc(names[uid] || uid);
           if (pri) {
             d.innerHTML =
               '<span class="handle">⠿</span><span class="name">' +
-              esc(n) +
+              label +
               '</span><button class="btn rbtn" title="Remove">✕</button>';
             d.querySelector(".rbtn").addEventListener("click", () => {
               syncDOM();
               state[type].priority = state[type].priority.filter(
-                (x) => x !== n,
+                (x) => x !== uid,
               );
-              state[type].unranked.push(n);
+              state[type].unranked.push(uid);
               renderAll();
             });
           } else {
             d.innerHTML =
               '<span class="name">' +
-              esc(n) +
+              label +
               '</span><button class="btn abtn" title="Add to priority">＋</button>';
             d.querySelector(".abtn").addEventListener("click", () => {
               syncDOM();
               state[type].unranked = state[type].unranked.filter(
-                (x) => x !== n,
+                (x) => x !== uid,
               );
-              state[type].priority.push(n);
+              state[type].priority.push(uid);
               renderAll();
             });
           }
