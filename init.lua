@@ -295,7 +295,26 @@ function obj:openEditor()
 		end
 	end)
 
-	self._editor:html(self:_buildEditorHTML(), "file://" .. _spoonPath)
+	-- Show a lightweight placeholder immediately so the window appears at once.
+	-- hs.webview:html() returns instantly but WKWebView paints asynchronously,
+	-- so swap in the full editor (inlined Sortable) only once the placeholder
+	-- has actually finished rendering -- otherwise it is replaced before it is
+	-- ever visible.
+	local loadingHTML = [[<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+		:root{color-scheme:light dark}
+		body{font:-apple-system-body;display:flex;height:100vh;margin:0;
+		align-items:center;justify-content:center;color:GrayText}</style></head>
+		<body>Loading…</body></html>]]
+
+	local swapped = false
+	self._editor:navigationCallback(function(action)
+		if action == "didFinishNavigation" and not swapped and self_ref._editor then
+			swapped = true
+			self_ref._editor:html(self_ref:_buildEditorHTML(), "file://" .. _spoonPath)
+		end
+	end)
+
+	self._editor:html(loadingHTML)
 	self:focusEditor()
 end
 
