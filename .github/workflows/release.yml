@@ -31,8 +31,11 @@ jobs:
       - name: Package Spoon
         run: mise run package
 
+      - name: Generate release notes
+        run: git cliff --latest --strip header -o RELEASE_NOTES.md
+
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG_NAME: ${{ github.ref_name }}
-        run: gh release create "$TAG_NAME" AudioPilot.spoon.zip
+        run: gh release create "$TAG_NAME" AudioPilot.spoon.zip --notes-file RELEASE_NOTES.md
