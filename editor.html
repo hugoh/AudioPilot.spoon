@@ -176,14 +176,15 @@
         render("iu", state.input.unranked, "input", false);
         if (sortableOP) sortableOP.destroy();
         if (sortableIP) sortableIP.destroy();
-        sortableOP = new Sortable(document.getElementById("op"), {
+        const sortableOpts = {
           animation: 150,
           handle: ".handle",
-        });
-        sortableIP = new Sortable(document.getElementById("ip"), {
-          animation: 150,
-          handle: ".handle",
-        });
+          // WKWebView does not support the native HTML5 drag-and-drop API that
+          // Sortable uses by default; forceFallback uses pointer events instead.
+          forceFallback: true,
+        };
+        sortableOP = new Sortable(document.getElementById("op"), sortableOpts);
+        sortableIP = new Sortable(document.getElementById("ip"), sortableOpts);
       }
 
       document.getElementById("sc").addEventListener("click", () => {

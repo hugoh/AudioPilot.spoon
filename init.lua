@@ -23,25 +23,37 @@ local function tableContains(t, value)
 	return false
 end
 
-function obj:loadConfig()
-	local config = hs.json.read(self.configPath)
-	if not config then
-		self._config = {
-			outputPriority = {},
-			inputPriority = {},
-			knownDevices = { output = {}, input = {} },
-		}
-		self:saveConfig()
-	else
-		self._config = config
+-- hs.json.read returns the *same* shared table instance for every empty array,
+-- so copy each list into its own table to avoid aliasing fields together.
+local function copyList(t)
+	local out = {}
+	if t then
+		for _, v in ipairs(t) do
+			out[#out + 1] = v
+		end
 	end
+	return out
+end
+
+function obj:loadConfig()
+	local config = hs.json.read(self.configPath) or {}
+	local known = config.knownDevices or {}
+	self._config = {
+		outputPriority = copyList(config.outputPriority),
+		inputPriority = copyList(config.inputPriority),
+		knownDevices = {
+			output = copyList(known.output),
+			input = copyList(known.input),
+		},
+	}
+	self:saveConfig()
 	self.log.i("Config loaded from " .. self.configPath)
 end
 
 function obj:saveConfig()
 	local dir = string.match(self.configPath, "^(.*)/[^/]+$")
 	if dir then hs.fs.mkdir(dir) end
-	hs.json.write(self._config, self.configPath, true)
+	hs.json.write(self._config, self.configPath, true, true)
 	self.log.i("Config saved to " .. self.configPath)
 end
 
@@ -215,12 +227,38 @@ function obj:_buildEditorHTML()
 	end
 	local html = f:read("*all")
 	f:close()
-	return (html:gsub("</head>", initScript .. "</head>", 1))
+
+	-- WKWebView's loadHTMLString does not grant file access to subresources, so
+	-- the relative <script src="vendor/..."> tag is blocked. Inline the source.
+	local sortableTag = '<script src="vendor/Sortable.min.js"></script>'
+	local sf = io.open(_spoonPath .. "vendor/Sortable.min.js")
+	if sf then
+		local sortable = sf:read("*all")
+		sf:close()
+		local s, e = html:find(sortableTag, 1, true)
+		if s then html = html:sub(1, s - 1) .. "<script>" .. sortable .. "</script>" .. html:sub(e + 1) end
+	else
+		self.log.e("Sortable.min.js not found at " .. _spoonPath .. "vendor/")
+	end
+
+	local hs1, he = html:find("</head>", 1, true)
+	if hs1 then html = html:sub(1, hs1 - 1) .. initScript .. html:sub(hs1) end
+	return html
+end
+
+function obj:focusEditor()
+	-- Hammerspoon runs as a background accessory app, so a shown webview does
+	-- not come to the foreground on its own. Raise it and focus the window
+	-- (which also activates Hammerspoon) so it gets keyboard focus.
+	self._editor:show()
+	self._editor:bringToFront(true)
+	local win = self._editor:hswindow()
+	if win then win:focus() end
 end
 
 function obj:openEditor()
 	if self._editor then
-		self._editor:show()
+		self:focusEditor()
 		return
 	end
 
@@ -231,6 +269,10 @@ function obj:openEditor()
 
 	self._editor = hs.webview.new(frame, {}, controller)
 	self._editor:windowStyle(hs.webview.windowMasks.titled + hs.webview.windowMasks.closable)
+	-- Webviews reject keyboard input and cannot become the key window unless
+	-- text entry is allowed; without this the window never takes focus and
+	-- drag-to-reorder does not work.
+	self._editor:allowTextEntry(true)
 
 	local self_ref = self
 	self._editor:windowCallback(function(action)
@@ -254,7 +296,7 @@ function obj:openEditor()
 	end)
 
 	self._editor:html(self:_buildEditorHTML(), "file://" .. _spoonPath)
-	self._editor:show()
+	self:focusEditor()
 end
 
 function obj:openConfig() hs.open(self.configPath) end
@@ -265,6 +307,7 @@ function obj:start()
 	self._menu:setTitle("🔊")
 	self:selectBestDevice("output")
 	self:selectBestDevice("input")
+	self:updateMenu()
 	local self_ref = self
 	hs.audiodevice.watcher.start(function(event) self_ref:onDeviceChange(event) end)
 	self.log.i("AudioPilot started")
