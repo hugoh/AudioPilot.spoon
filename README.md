@@ -11,9 +11,11 @@ A Hammerspoon Spoon that automatically switches audio devices based on a priorit
 
 - Automatically selects the best available audio device based on your priority list
 - Separate priority lists for output (speakers/headphones) and input (microphones)
+- Detects when macOS auto-switches to a priority device on connect and sends a notification
 - Tracks all devices you have ever connected for easy priority management
+- Pre-discovers paired Bluetooth devices (even while disconnected) via a background scan at startup
 - Shows a 🔊 menu bar icon with current device status and priority lists
-- Sends a system notification whenever a device switch occurs
+- Sends a system notification whenever a device switch occurs; rapid changes are coalesced into one
 - Config file is human-editable JSON, with menu items to edit priorities visually or open the raw file
 
 ## Alternatives
@@ -60,27 +62,42 @@ hs.loadSpoon("AudioPilot")
 spoon.AudioPilot:start()
 ```
 
-On first launch, a default config file is created at `~/.config/AudioPilot/config.json`. Edit it to set your device priorities:
+On first launch, a default config file is created at `~/.config/AudioPilot/config.json`. The config is keyed by CoreAudio device UIDs (opaque strings assigned by macOS) rather than by name, so the priority lists are best managed through the **Edit Priorities...** menu item rather than edited by hand.
+
+A typical config looks like this:
 
 ```json
 {
-  "outputPriority": ["AirPods Pro", "Sony WH-1000XM5", "MacBook Pro Speakers"],
-  "inputPriority": ["AirPods Pro Microphone", "Built-in Microphone"],
+  "outputPriority": ["5C-52-30-DB-6E-80:output", "AppleHAD:1:0"],
+  "inputPriority": ["5C-52-30-DB-6E-80:input", "AppleHAD:1:1"],
   "knownDevices": {
-    "output": ["AirPods Pro", "Sony WH-1000XM5", "MacBook Pro Speakers"],
-    "input": ["AirPods Pro Microphone", "Built-in Microphone"]
+    "output": [
+      { "uid": "5C-52-30-DB-6E-80:output", "name": "AirPods Pro" },
+      { "uid": "AppleHAD:1:0", "name": "MacBook Pro Speakers" }
+    ],
+    "input": [
+      { "uid": "5C-52-30-DB-6E-80:input", "name": "AirPods Pro Microphone" },
+      { "uid": "AppleHAD:1:1", "name": "Built-in Microphone" }
+    ]
   }
 }
 ```
 
-- **`outputPriority`** — ordered list of output devices, most preferred first
-- **`inputPriority`** — ordered list of input devices, most preferred first
-- **`knownDevices`** — all devices ever seen (auto-updated; used to show disconnected devices in the menu)
+- **`outputPriority`** — ordered list of output device UIDs, most preferred first
+- **`inputPriority`** — ordered list of input device UIDs, most preferred first
+- **`knownDevices`** — all devices ever seen, stored as `{uid, name}` objects (auto-updated; used to show disconnected devices in the menu and editor)
 
 To change the config file location:
 
 ```lua
 spoon.AudioPilot.configPath = "/path/to/your/config.json"
+spoon.AudioPilot:start()
+```
+
+To change how long AudioPilot waits before emitting a coalesced notification (default 5 seconds):
+
+```lua
+spoon.AudioPilot.notifyDelay = 3
 spoon.AudioPilot:start()
 ```
 
@@ -92,15 +109,18 @@ Click the 🔊 icon to see:
 2. **Output Priority** — your priority list with `*` marking the active device and `(disconnected)` for unavailable ones
 3. **Input Priority** — same for input
 4. **Refresh** — re-evaluates priorities and switches if needed
-5. **Edit Priorities...** — opens a visual drag-and-drop editor to reorder device priorities
-6. **Edit Config File...** — opens the raw JSON config file in your default editor
+5. **Rescan Bluetooth Devices** — re-runs the background Bluetooth scan to discover newly paired devices
+6. **Edit Priorities...** — opens a visual drag-and-drop editor to reorder device priorities and remove stale entries
+7. **Edit Config File...** — opens the raw JSON config file in your default editor
 
 ## How It Works
 
-- On startup, AudioPilot loads your config and immediately enforces your priorities
+- On startup, AudioPilot loads your config, enforces your priorities immediately, and runs a background Bluetooth scan (`system_profiler SPBluetoothDataType`) to pre-populate `knownDevices` with all paired audio devices — even ones that are not currently connected
 - Whenever a device is connected or disconnected, it walks the priority list and switches to the first available device
+- If macOS auto-switches to a priority device before AudioPilot's watcher fires (common with Bluetooth headphones), AudioPilot detects this and sends a notification for the change
+- Rapid connect/disconnect events within the coalesce window (`notifyDelay`, default 5 s) are collapsed into a single notification showing the net change
 - Manual changes (via System Settings or another app) are respected until the next connect/disconnect event
-- New devices are automatically added to `knownDevices` in the config so you can later add them to a priority list
+- New devices are automatically added to `knownDevices` in the config so you can later add them to a priority list; the **Edit Priorities...** editor lets you remove stale entries you no longer need
 
 ## Security & Permissions
 

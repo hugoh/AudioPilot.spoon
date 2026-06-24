@@ -970,43 +970,6 @@ describe("AudioPilot", function()
 		end)
 	end)
 
-	describe("migrateConfig (legacy name-based config)", function()
-		it("converts known device names to uid entries for connected devices", function()
-			makeMockDevice("Speakers", true, "uidSpk")
-			mock_hs._setConfig(AudioPilot.configPath, {
-				outputPriority = {},
-				inputPriority = {},
-				knownDevices = { output = { "Speakers" }, input = {} },
-			})
-			AudioPilot:loadConfig()
-			assert.are.equal(1, #AudioPilot._config.knownDevices.output)
-			assert.are.equal("uidSpk", AudioPilot._config.knownDevices.output[1].uid)
-			assert.are.equal("Speakers", AudioPilot._config.knownDevices.output[1].name)
-		end)
-
-		it("converts name-based priority entries to uids", function()
-			makeMockDevice("Speakers", true, "uidSpk")
-			mock_hs._setConfig(AudioPilot.configPath, {
-				outputPriority = { "Speakers" },
-				inputPriority = {},
-				knownDevices = { output = { "Speakers" }, input = {} },
-			})
-			AudioPilot:loadConfig()
-			assert.are.equal("uidSpk", AudioPilot._config.outputPriority[1])
-		end)
-
-		it("drops unresolvable (disconnected) entries", function()
-			mock_hs._setConfig(AudioPilot.configPath, {
-				outputPriority = { "Ghost" },
-				inputPriority = {},
-				knownDevices = { output = { "Ghost" }, input = {} },
-			})
-			AudioPilot:loadConfig()
-			assert.are.equal(0, #AudioPilot._config.knownDevices.output)
-			assert.are.equal(0, #AudioPilot._config.outputPriority)
-		end)
-	end)
-
 	describe("mergeBluetoothDevices", function()
 		before_each(function()
 			AudioPilot:loadConfig()

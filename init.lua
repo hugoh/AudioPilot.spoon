@@ -49,97 +49,23 @@ local function findByUid(list, uid)
 	return nil
 end
 
+local DIRECTIONS = { "output", "input" }
+
 -- A Bluetooth device's CoreAudio UID is its MAC address with ":" replaced by "-"
 -- and an ":output"/":input" suffix, e.g. "5C:52:30:DB:6E:80" -> "5C-52-30-DB-6E-80:output".
 local function uidFromAddress(addr, dir) return (addr:gsub(":", "-")) .. ":" .. dir end
 
--- Legacy (pre-uid) configs stored plain name strings in knownDevices; uid-keyed
--- configs store { uid, name } tables.
-local function isLegacyConfig(config)
-	local known = config.knownDevices or {}
-	for _, listName in ipairs({ "output", "input" }) do
-		for _, v in ipairs(known[listName] or {}) do
-			if type(v) == "string" then return true end
-		end
-	end
-	return false
-end
-
--- One-time best-effort migration of a name-based config to the uid-keyed schema.
--- Names are resolved to uids via currently-connected devices; entries for
--- disconnected devices can't be resolved and are dropped (they are re-added by
--- getAvailableDevices / the Bluetooth scan once seen again).
-function obj:migrateConfig(raw)
-	self.log.i("Migrating name-based config to uid-based config")
-	local outMap, inMap = {}, {}
-	for _, d in ipairs(hs.audiodevice.allOutputDevices()) do
-		outMap[d:name()] = d:uid()
-	end
-	for _, d in ipairs(hs.audiodevice.allInputDevices()) do
-		inMap[d:name()] = d:uid()
-	end
-
-	local function migrateKnown(list, nameMap)
-		local result = {}
-		for _, v in ipairs(list or {}) do
-			if type(v) == "table" and v.uid then
-				result[#result + 1] = { uid = v.uid, name = v.name or v.uid }
-			elseif type(v) == "string" then
-				local uid = nameMap[v]
-				if uid then
-					result[#result + 1] = { uid = uid, name = v }
-				else
-					self.log.w("Dropping unresolvable known device during migration: " .. v)
-				end
-			end
-		end
-		return result
-	end
-
-	local function migratePriority(list, nameMap, known)
-		local result = {}
-		for _, v in ipairs(list or {}) do
-			if findByUid(known, v) then
-				result[#result + 1] = v -- already a known uid
-			else
-				local uid = nameMap[v]
-				if uid then
-					result[#result + 1] = uid
-				else
-					self.log.w("Dropping unresolvable priority device during migration: " .. v)
-				end
-			end
-		end
-		return result
-	end
-
-	local known = raw.knownDevices or {}
-	local newKnown = {
-		output = migrateKnown(known.output, outMap),
-		input = migrateKnown(known.input, inMap),
-	}
-	return {
-		outputPriority = migratePriority(raw.outputPriority, outMap, newKnown.output),
-		inputPriority = migratePriority(raw.inputPriority, inMap, newKnown.input),
-		knownDevices = newKnown,
-	}
-end
-
 function obj:loadConfig()
 	local config = hs.json.read(self.configPath) or {}
-	if isLegacyConfig(config) then
-		self._config = self:migrateConfig(config)
-	else
-		local known = config.knownDevices or {}
-		self._config = {
-			outputPriority = copyList(config.outputPriority),
-			inputPriority = copyList(config.inputPriority),
-			knownDevices = {
-				output = copyKnown(known.output),
-				input = copyKnown(known.input),
-			},
-		}
-	end
+	local known = config.knownDevices or {}
+	self._config = {
+		outputPriority = copyList(config.outputPriority),
+		inputPriority = copyList(config.inputPriority),
+		knownDevices = {
+			output = copyKnown(known.output),
+			input = copyKnown(known.input),
+		},
+	}
 	self:saveConfig()
 	self.log.i("Config loaded from " .. self.configPath)
 end
@@ -279,9 +205,10 @@ end
 -- Emit one notification covering all directions that moved since the last flush.
 -- Directions whose net change is zero (from == to) are silently dropped.
 function obj:_flushNotify()
+	if not self._notifyBuffer then return end
 	self._notifyTimer = nil
 	local lines = {}
-	for _, dir in ipairs({ "output", "input" }) do
+	for _, dir in ipairs(DIRECTIONS) do
 		local buf = self._notifyBuffer[dir]
 		if buf then
 			if buf.from ~= buf.to then
