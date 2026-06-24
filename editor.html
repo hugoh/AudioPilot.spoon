@@ -73,6 +73,13 @@
     .abtn {
       color: AccentColor;
     }
+    .fbtn {
+      font-size: 13px;
+      opacity: 0.5;
+    }
+    .fbtn:hover {
+      opacity: 1;
+    }
     footer {
       border-top: 1px solid color-mix(in srgb, CanvasText 15%, transparent);
       display: flex;
@@ -122,6 +129,9 @@
           unranked: toUids(raw.input.unranked),
         },
       };
+
+      // Devices the user removed from "Other Known Devices"; committed on Save.
+      const forgotten = { output: [], input: [] };
 
       function esc(s) {
         return s
@@ -173,13 +183,22 @@
             d.innerHTML =
               '<span class="name">' +
               label +
-              '</span><button class="btn abtn" title="Add to priority">＋</button>';
+              '</span><button class="btn abtn" title="Add to priority">＋</button>' +
+              '<button class="btn fbtn" title="Forget this device">🗑</button>';
             d.querySelector(".abtn").addEventListener("click", () => {
               syncDOM();
               state[type].unranked = state[type].unranked.filter(
                 (x) => x !== uid,
               );
               state[type].priority.push(uid);
+              renderAll();
+            });
+            d.querySelector(".fbtn").addEventListener("click", () => {
+              syncDOM();
+              state[type].unranked = state[type].unranked.filter(
+                (x) => x !== uid,
+              );
+              forgotten[type].push(uid);
               renderAll();
             });
           }
@@ -213,6 +232,8 @@
           action: "save",
           outputPriority: getOrder("op"),
           inputPriority: getOrder("ip"),
+          forgetOutput: forgotten.output,
+          forgetInput: forgotten.input,
         });
       });
 

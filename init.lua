@@ -388,6 +388,19 @@ function obj:updateMenu()
 	self._menu:setMenu(items)
 end
 
+-- Remove devices from knownDevices[dir] (the editor's "forget" action). A device
+-- that is currently connected will simply be re-added by the next
+-- getAvailableDevices, so this meaningfully removes only disconnected entries.
+function obj:forgetDevices(dir, uids)
+	if not uids then return end
+	local known = self._config.knownDevices[dir]
+	for _, uid in ipairs(uids) do
+		for i = #known, 1, -1 do
+			if known[i].uid == uid then table.remove(known, i) end
+		end
+	end
+end
+
 function obj:_buildEditorHTML()
 	-- Each list is emitted as { uid, name } objects: priority entries in rank
 	-- order, unranked = known devices not in the priority list.
@@ -482,6 +495,8 @@ function obj:openEditor()
 		if body.action == "save" then
 			self_ref._config.outputPriority = body.outputPriority
 			self_ref._config.inputPriority = body.inputPriority
+			self_ref:forgetDevices("output", body.forgetOutput)
+			self_ref:forgetDevices("input", body.forgetInput)
 			self_ref:saveConfig()
 			self_ref:selectBestDevice("output")
 			self_ref:selectBestDevice("input")

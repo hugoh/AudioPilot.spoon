@@ -706,6 +706,38 @@ describe("AudioPilot", function()
 			assert.is_nil(AudioPilot._editor)
 		end)
 
+		it("save callback forgets known devices and keeps the rest", function()
+			AudioPilot._config.knownDevices.output = {
+				{ uid = "uidGone", name = "Old Device" },
+				{ uid = "uidKeep", name = "Keep Device" },
+			}
+			AudioPilot:openEditor()
+			local ctrl = mock_hs.webview._lastController
+			ctrl._callback({
+				body = { action = "save", outputPriority = {}, inputPriority = {}, forgetOutput = { "uidGone" } },
+			})
+			assert.is_nil(findKnown(AudioPilot._config.knownDevices.output, "uidGone"))
+			assert.is_not_nil(findKnown(AudioPilot._config.knownDevices.output, "uidKeep"))
+		end)
+
+		it("save callback forgets known input devices", function()
+			AudioPilot._config.knownDevices.input = { { uid = "uidMicGone", name = "Old Mic" } }
+			AudioPilot:openEditor()
+			local ctrl = mock_hs.webview._lastController
+			ctrl._callback({
+				body = { action = "save", outputPriority = {}, inputPriority = {}, forgetInput = { "uidMicGone" } },
+			})
+			assert.is_nil(findKnown(AudioPilot._config.knownDevices.input, "uidMicGone"))
+		end)
+
+		it("save callback without forget lists leaves knownDevices intact", function()
+			AudioPilot._config.knownDevices.output = { { uid = "uidKeep", name = "Keep" } }
+			AudioPilot:openEditor()
+			local ctrl = mock_hs.webview._lastController
+			ctrl._callback({ body = { action = "save", outputPriority = {}, inputPriority = {} } })
+			assert.is_not_nil(findKnown(AudioPilot._config.knownDevices.output, "uidKeep"))
+		end)
+
 		it("cancel callback does not modify config", function()
 			AudioPilot._config.outputPriority = { "Original" }
 			AudioPilot:openEditor()
@@ -937,6 +969,37 @@ describe("AudioPilot", function()
 			assert.is_not_nil(item)
 			item.fn()
 			assert.is_not_nil(mock_hs.task._lastTask)
+		end)
+	end)
+
+	describe("forgetDevices", function()
+		before_each(function() AudioPilot:loadConfig() end)
+
+		it("removes the matching uid from knownDevices", function()
+			AudioPilot._config.knownDevices.output = {
+				{ uid = "a", name = "A" },
+				{ uid = "b", name = "B" },
+			}
+			AudioPilot:forgetDevices("output", { "a" })
+			assert.is_nil(findKnown(AudioPilot._config.knownDevices.output, "a"))
+			assert.is_not_nil(findKnown(AudioPilot._config.knownDevices.output, "b"))
+		end)
+
+		it("removes multiple uids", function()
+			AudioPilot._config.knownDevices.output = {
+				{ uid = "a", name = "A" },
+				{ uid = "b", name = "B" },
+				{ uid = "c", name = "C" },
+			}
+			AudioPilot:forgetDevices("output", { "a", "c" })
+			assert.are.equal(1, #AudioPilot._config.knownDevices.output)
+			assert.are.equal("b", AudioPilot._config.knownDevices.output[1].uid)
+		end)
+
+		it("is a no-op when uids is nil", function()
+			AudioPilot._config.knownDevices.output = { { uid = "a", name = "A" } }
+			assert.has_no.errors(function() AudioPilot:forgetDevices("output", nil) end)
+			assert.are.equal(1, #AudioPilot._config.knownDevices.output)
 		end)
 	end)
 end)
