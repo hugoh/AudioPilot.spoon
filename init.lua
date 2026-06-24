@@ -551,6 +551,7 @@ function obj:openEditor()
 			self_ref:saveConfig()
 			self_ref:selectBestDevice("output")
 			self_ref:selectBestDevice("input")
+			self_ref:updateMenu()
 			self_ref._editor:delete()
 			self_ref._editor = nil
 		elseif body.action == "cancel" then
