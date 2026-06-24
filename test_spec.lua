@@ -125,7 +125,8 @@ before_each(function()
 			defaultInputDevice = function() return mock_hs.audiodevice._defaultInput end,
 			watcher = {
 				_callback = nil,
-				start = function(cb) mock_hs.audiodevice.watcher._callback = cb end,
+				setCallback = function(cb) mock_hs.audiodevice.watcher._callback = cb end,
+				start = function() end,
 				stop = function() mock_hs.audiodevice.watcher._callback = nil end,
 			},
 		},
@@ -407,10 +408,34 @@ describe("AudioPilot", function()
 			assert.truthy(mock_hs.notify._sent[1].informativeText:find("MicA"))
 		end)
 
-		it("does not notify when device is already current", function()
+		it("notifies when macOS already set the best device (first observation)", function()
+			-- macOS auto-switches to AirPods on connect before our watcher runs, so
+			-- the device is already current; we should still report the change once.
 			local dev = makeMockDevice("DevA", true)
 			mock_hs.audiodevice._defaultOutput = dev
 			AudioPilot._config.outputPriority = { "DevA" }
+			AudioPilot:selectBestDevice("output")
+			assert.are.equal(1, #mock_hs.notify._sent)
+			assert.truthy(mock_hs.notify._sent[1].informativeText:find("DevA"))
+		end)
+
+		it("does not notify again when the best device is unchanged", function()
+			local dev = makeMockDevice("DevA", true)
+			mock_hs.audiodevice._defaultOutput = dev
+			AudioPilot._config.outputPriority = { "DevA" }
+			AudioPilot:selectBestDevice("output")
+			AudioPilot:selectBestDevice("output")
+			AudioPilot:selectBestDevice("output")
+			assert.are.equal(1, #mock_hs.notify._sent)
+		end)
+
+		it("does not notify when primed to the current best device", function()
+			-- start() primes _lastBest to the current defaults so a reload that is
+			-- already correct stays silent.
+			local dev = makeMockDevice("DevA", true)
+			mock_hs.audiodevice._defaultOutput = dev
+			AudioPilot._config.outputPriority = { "DevA" }
+			AudioPilot._lastBest = { output = "DevA", input = nil }
 			AudioPilot:selectBestDevice("output")
 			assert.are.equal(0, #mock_hs.notify._sent)
 		end)
@@ -433,6 +458,17 @@ describe("AudioPilot", function()
 			end
 			assert.is_true(hasOutput)
 			assert.is_true(hasInput)
+		end)
+
+		it("refreshes the menu on dev# event even when no switch occurs", function()
+			-- macOS may auto-switch to the best device first, so selectBestDevice
+			-- early-returns without refreshing; the menu must still be rebuilt to
+			-- show the new connected/disconnected state.
+			local updateCalled = false
+			AudioPilot.selectBestDevice = function() end
+			AudioPilot.updateMenu = function() updateCalled = true end
+			AudioPilot:onDeviceChange("dev#")
+			assert.is_true(updateCalled)
 		end)
 
 		it("calls updateMenu on dOut event without selectBestDevice", function()

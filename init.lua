@@ -261,10 +261,17 @@ function obj:scanBluetoothDevices()
 	if task then task:start() end
 end
 
+-- Defined with a dot (ignored `_` receiver) since it uses no instance state but is
+-- still called as self:notifyChange(...) for consistency with the other methods.
+function obj.notifyChange(_, deviceType, name)
+	hs.notify.new({ title = "AudioPilot", informativeText = deviceType .. " → " .. name }):send()
+end
+
 function obj:selectBestDevice(deviceType)
 	local available = self:getAvailableDevices()
 	local priorities = self._config[deviceType .. "Priority"] or {}
 	local availableSet = available[deviceType]
+	self._lastBest = self._lastBest or { output = nil, input = nil }
 
 	for _, uid in ipairs(priorities) do
 		local name = availableSet[uid]
@@ -277,7 +284,18 @@ function obj:selectBestDevice(deviceType)
 			end
 
 			if current and current:uid() == uid then
-				self.log.d(deviceType .. " already set to best: " .. name)
+				-- Already on the best device -- we switched earlier, or macOS did it
+				-- automatically on connect. Announce it once (when it differs from
+				-- what we last reported) so the user learns of macOS-driven switches,
+				-- without re-notifying on every unrelated device-list change.
+				if self._lastBest[deviceType] ~= uid then
+					self.log.i(deviceType .. " is now on best device: " .. name)
+					self._lastBest[deviceType] = uid
+					self:notifyChange(deviceType, name)
+					self:updateMenu()
+				else
+					self.log.d(deviceType .. " already set to best: " .. name)
+				end
 				return
 			end
 
@@ -296,7 +314,8 @@ function obj:selectBestDevice(deviceType)
 						dev:setDefaultInputDevice()
 					end
 					self.log.i("Switched " .. deviceType .. " to: " .. name)
-					hs.notify.new({ title = "AudioPilot", informativeText = deviceType .. " → " .. name }):send()
+					self._lastBest[deviceType] = uid
+					self:notifyChange(deviceType, name)
 					self:updateMenu()
 					return
 				end
@@ -313,6 +332,11 @@ function obj:onDeviceChange(event)
 	if event == "dev#" then
 		self:selectBestDevice("output")
 		self:selectBestDevice("input")
+		-- A device connecting/disconnecting changes the available set even when no
+		-- switch is needed (e.g. macOS already auto-switched to our best device, so
+		-- selectBestDevice early-returns without refreshing). Always rebuild the
+		-- menu so its connected/disconnected labels stay accurate.
+		self:updateMenu()
 	elseif event == "dOut" or event == "dIn" then
 		self:updateMenu()
 	end
@@ -537,12 +561,22 @@ function obj:start()
 	self:loadConfig()
 	self._menu = hs.menubar.new()
 	self._menu:setTitle("🔊")
+	-- Prime the change tracker with the current defaults so a reload while already
+	-- on the best device does not fire a spurious notification; a real switch (or a
+	-- device connected during reload) still differs from these and notifies.
+	local curOut = hs.audiodevice.defaultOutputDevice()
+	local curIn = hs.audiodevice.defaultInputDevice()
+	self._lastBest = {
+		output = curOut and curOut:uid() or nil,
+		input = curIn and curIn:uid() or nil,
+	}
 	self:selectBestDevice("output")
 	self:selectBestDevice("input")
 	self:updateMenu()
 	self:scanBluetoothDevices()
 	local self_ref = self
-	hs.audiodevice.watcher.start(function(event) self_ref:onDeviceChange(event) end)
+	hs.audiodevice.watcher.setCallback(function(event) self_ref:onDeviceChange(event) end)
+	hs.audiodevice.watcher.start()
 	self.log.i("AudioPilot started")
 end
 
