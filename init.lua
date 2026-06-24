@@ -251,13 +251,12 @@ end
 -- Asynchronously enumerate paired Bluetooth audio devices (the scan takes ~1-2s,
 -- so it must not block); the merge happens in the completion callback.
 function obj:scanBluetoothDevices()
-	local self_ref = self
 	local task = hs.task.new("/usr/sbin/system_profiler", function(code, stdout, _stderr)
 		if code ~= 0 then
-			self_ref.log.w("system_profiler exited with code " .. tostring(code))
+			self.log.w("system_profiler exited with code " .. tostring(code))
 			return
 		end
-		self_ref:mergeBluetoothDevices(stdout)
+		self:mergeBluetoothDevices(stdout)
 	end, { "SPBluetoothDataType", "-json" })
 	if task then task:start() end
 end
@@ -274,8 +273,7 @@ function obj:_bufferNotify(deviceType, fromUid, toUid, toName)
 		self._notifyBuffer[deviceType] = { from = fromUid, to = toUid, toName = toName }
 	end
 	if self._notifyTimer then self._notifyTimer:stop() end
-	local self_ref = self
-	self._notifyTimer = hs.timer.doAfter(self.notifyDelay, function() self_ref:_flushNotify() end)
+	self._notifyTimer = hs.timer.doAfter(self.notifyDelay, function() self:_flushNotify() end)
 end
 
 -- Emit one notification covering all directions that moved since the last flush.
@@ -412,26 +410,25 @@ function obj:updateMenu()
 		currentInputUid
 	)
 
-	local self_ref = self
 	table.insert(items, {
 		title = "Refresh",
 		fn = function()
-			self_ref:selectBestDevice("output")
-			self_ref:selectBestDevice("input")
-			self_ref:updateMenu()
+			self:selectBestDevice("output")
+			self:selectBestDevice("input")
+			self:updateMenu()
 		end,
 	})
 	table.insert(items, {
 		title = "Rescan Bluetooth Devices",
-		fn = function() self_ref:scanBluetoothDevices() end,
+		fn = function() self:scanBluetoothDevices() end,
 	})
 	table.insert(items, {
 		title = "Edit Priorities...",
-		fn = function() self_ref:openEditor() end,
+		fn = function() self:openEditor() end,
 	})
 	table.insert(items, {
 		title = "Edit Config File...",
-		fn = function() self_ref:openConfig() end,
+		fn = function() self:openConfig() end,
 	})
 
 	self._menu:setTitle("🔊")
@@ -535,27 +532,26 @@ function obj:openEditor()
 	-- drag-to-reorder does not work.
 	self._editor:allowTextEntry(true)
 
-	local self_ref = self
 	self._editor:windowCallback(function(action)
-		if action == "closing" then self_ref._editor = nil end
+		if action == "closing" then self._editor = nil end
 	end)
 
 	controller:setCallback(function(message)
 		local body = message.body
 		if body.action == "save" then
-			self_ref._config.outputPriority = body.outputPriority
-			self_ref._config.inputPriority = body.inputPriority
-			self_ref:forgetDevices("output", body.forgetOutput)
-			self_ref:forgetDevices("input", body.forgetInput)
-			self_ref:saveConfig()
-			self_ref:selectBestDevice("output")
-			self_ref:selectBestDevice("input")
-			self_ref:updateMenu()
-			self_ref._editor:delete()
-			self_ref._editor = nil
+			self._config.outputPriority = body.outputPriority
+			self._config.inputPriority = body.inputPriority
+			self:forgetDevices("output", body.forgetOutput)
+			self:forgetDevices("input", body.forgetInput)
+			self:saveConfig()
+			self:selectBestDevice("output")
+			self:selectBestDevice("input")
+			self:updateMenu()
+			self._editor:delete()
+			self._editor = nil
 		elseif body.action == "cancel" then
-			self_ref._editor:delete()
-			self_ref._editor = nil
+			self._editor:delete()
+			self._editor = nil
 		end
 	end)
 
@@ -572,9 +568,9 @@ function obj:openEditor()
 
 	local swapped = false
 	self._editor:navigationCallback(function(action)
-		if action == "didFinishNavigation" and not swapped and self_ref._editor then
+		if action == "didFinishNavigation" and not swapped and self._editor then
 			swapped = true
-			self_ref._editor:html(self_ref:_buildEditorHTML(), "file://" .. _spoonPath)
+			self._editor:html(self:_buildEditorHTML(), "file://" .. _spoonPath)
 		end
 	end)
 
@@ -603,8 +599,7 @@ function obj:start()
 	self:selectBestDevice("input")
 	self:updateMenu()
 	self:scanBluetoothDevices()
-	local self_ref = self
-	hs.audiodevice.watcher.setCallback(function(event) self_ref:onDeviceChange(event) end)
+	hs.audiodevice.watcher.setCallback(function(event) self:onDeviceChange(event) end)
 	hs.audiodevice.watcher.start()
 	self.log.i("AudioPilot started")
 end
