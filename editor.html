@@ -7,14 +7,39 @@
     <style>
     :root {
       color-scheme: light dark;
+      --bg: #f2f2f7;
+      --card-bg: #ffffff;
+      --separator: rgba(0, 0, 0, 0.1);
+      --border: rgba(0, 0, 0, 0.15);
+      --label: rgba(60, 60, 67, 0.6);
+      --red: #ff3b30;
+      --blue: #007aff;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1c1c1e;
+        --card-bg: #2c2c2e;
+        --separator: rgba(255, 255, 255, 0.08);
+        --border: rgba(255, 255, 255, 0.15);
+        --label: rgba(235, 235, 245, 0.6);
+        --red: #ff453a;
+        --blue: #0a84ff;
+      }
     }
     body {
+      background: var(--bg);
+      color: CanvasText;
       font: -apple-system-body;
       padding: 16px;
       -webkit-user-select: none;
     }
+    h3 {
+      font-size: 13px;
+      font-weight: 600;
+      margin: 0 0 12px;
+    }
     label {
-      color: GrayText;
+      color: var(--label);
       display: block;
       font-size: 11px;
       font-weight: 600;
@@ -23,14 +48,16 @@
       text-transform: uppercase;
     }
     article {
-      border: 1px solid color-mix(in srgb, CanvasText 15%, transparent);
+      background: var(--card-bg);
+      border: 1px solid var(--border);
       border-radius: 8px;
       margin-bottom: 12px;
+      overflow: hidden;
       padding: 0;
     }
     .item {
       align-items: center;
-      border-bottom: 1px solid color-mix(in srgb, CanvasText 10%, transparent);
+      border-bottom: 1px solid var(--separator);
       display: flex;
       gap: 8px;
       padding: 7px 12px;
@@ -45,18 +72,20 @@
       cursor: grabbing;
     }
     .handle {
-      color: GrayText;
+      color: var(--label);
       flex-shrink: 0;
       font-size: 12px;
     }
     .name {
       flex: 1;
+      font-size: 13px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
     .empty {
-      color: GrayText;
+      color: var(--label);
+      font-size: 13px;
       font-style: italic;
       padding: 10px 12px;
     }
@@ -68,25 +97,43 @@
       padding: 0 2px;
     }
     .rbtn {
-      color: #e53935;
+      color: var(--red);
     }
     .abtn {
-      color: AccentColor;
+      color: var(--blue);
     }
     .fbtn {
       font-size: 13px;
-      opacity: 0.5;
+      opacity: 0.4;
     }
     .fbtn:hover {
-      opacity: 1;
+      opacity: 0.9;
     }
     footer {
-      border-top: 1px solid color-mix(in srgb, CanvasText 15%, transparent);
       display: flex;
       gap: 8px;
       justify-content: flex-end;
-      margin-top: 12px;
-      padding-top: 12px;
+      margin-top: 4px;
+    }
+    footer button {
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      padding: 4px 16px;
+    }
+    #cc {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      color: CanvasText;
+    }
+    #sc {
+      background: var(--blue);
+      border: 1px solid transparent;
+      color: #fff;
+      font-weight: 500;
+    }
+    #sc:hover {
+      opacity: 0.9;
     }
     </style>
   </head>
