@@ -288,6 +288,21 @@ describe("AudioPilot", function()
 			assert.are.equal("mkdir", callOrder[1])
 			assert.are.equal("write", callOrder[2])
 		end)
+
+		it("logs an error and does not claim success when hs.json.write fails", function()
+			AudioPilot._config = { outputPriority = {}, inputPriority = {}, knownDevices = { output = {}, input = {} } }
+			mock_hs.json.write = function(_d, _p, _pp) return false end
+			AudioPilot:saveConfig()
+			assert.truthy(#AudioPilot.log._errors > 0)
+			assert.are.equal(0, #AudioPilot.log._infos)
+		end)
+
+		it("logs success info when hs.json.write succeeds", function()
+			AudioPilot._config = { outputPriority = {}, inputPriority = {}, knownDevices = { output = {}, input = {} } }
+			AudioPilot:saveConfig()
+			assert.truthy(#AudioPilot.log._infos > 0)
+			assert.are.equal(0, #AudioPilot.log._errors)
+		end)
 	end)
 
 	describe("getAvailableDevices", function()

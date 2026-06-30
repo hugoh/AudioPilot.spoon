@@ -87,8 +87,12 @@ end
 function obj:saveConfig()
 	local dir = string.match(self.configPath, "^(.*)/[^/]+$")
 	if dir then hs.fs.mkdir(dir) end
-	hs.json.write(self._config, self.configPath, true, true)
-	self.log.i("Config saved to " .. self.configPath)
+	local ok = hs.json.write(self._config, self.configPath, true, true)
+	if ok then
+		self.log.i("Config saved to " .. self.configPath)
+	else
+		self.log.e("Failed to save config to " .. self.configPath)
+	end
 end
 
 function obj:getAvailableDevices()
