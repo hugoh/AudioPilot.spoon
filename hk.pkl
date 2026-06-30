@@ -14,7 +14,6 @@ local linters = new Mapping<String, Step> {
     ["lua"] = Builtins.luacheck
     ["markdown"] = Builtins.rumdl
     ["mise"] = Builtins.mise
-    ["shfmt"] = Builtins.shfmt
     ["stylua"] = Builtins.stylua
     ["toml"] = Builtins.tombi
     ["typos"] = Builtins.typos
