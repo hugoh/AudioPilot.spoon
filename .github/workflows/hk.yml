@@ -1,6 +1,9 @@
 name: hk
 
-permissions: {}
+permissions:
+  contents: read
+  packages: read
+  statuses: write
 
 on: # yamllint disable-line rule:truthy
   push:
