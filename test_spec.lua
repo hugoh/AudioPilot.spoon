@@ -931,6 +931,43 @@ describe("AudioPilot", function()
 			ctrl._callback({ body = { action = "cancel" } })
 			assert.is_nil(AudioPilot._editor)
 		end)
+
+		describe("load timeout", function()
+			it("shows an error message if navigation never finishes", function()
+				AudioPilot:openEditor()
+				local wv = mock_hs.webview._lastWebview
+				local timer = mock_hs.timer._pending
+				assert.is_not_nil(timer)
+				timer._fn()
+				assert.truthy(wv._html:lower():find("failed to load"))
+			end)
+
+			it("logs a warning if navigation never finishes", function()
+				AudioPilot:openEditor()
+				local timer = mock_hs.timer._pending
+				timer._fn()
+				assert.truthy(#AudioPilot.log._warnings > 0)
+			end)
+
+			it("does not show the timeout error once navigation has finished", function()
+				AudioPilot:openEditor()
+				local wv = mock_hs.webview._lastWebview
+				wv._navCb("didFinishNavigation")
+				local loadedHTML = wv._html
+				local timer = mock_hs.timer._pending
+				timer._fn()
+				assert.are.equal(loadedHTML, wv._html)
+			end)
+
+			it("does not fire after the editor was closed", function()
+				AudioPilot:openEditor()
+				local wv = mock_hs.webview._lastWebview
+				wv._windowCb("closing")
+				local timer = mock_hs.timer._pending
+				assert.has_no.errors(function() timer._fn() end)
+				assert.is_nil(AudioPilot._editor)
+			end)
+		end)
 	end)
 
 	describe("start and stop", function()

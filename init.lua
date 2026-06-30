@@ -65,6 +65,10 @@ end
 
 local DIRECTIONS = { "output", "input" }
 
+-- Seconds to wait for the editor webview's initial navigation to finish before
+-- giving up and showing an error instead of an indefinite "Loading…" screen.
+local EDITOR_LOAD_TIMEOUT = 5
+
 -- A Bluetooth device's CoreAudio UID is its MAC address with ":" replaced by "-"
 -- and an ":output"/":input" suffix, e.g. "5C:52:30:DB:6E:80" -> "5C-52-30-DB-6E-80:output".
 local function uidFromAddress(addr, dir) return (addr:gsub(":", "-")) .. ":" .. dir end
@@ -531,15 +535,32 @@ function obj:openEditor()
 		<body>Loading…</body></html>]]
 
 	local swapped = false
+	local editorRef = self._editor
+	local loadTimer
+
 	self._editor:navigationCallback(function(action)
 		if action == "didFinishNavigation" and not swapped and self._editor then
 			swapped = true
+			if loadTimer then loadTimer:stop() end
 			self._editor:html(self:_buildEditorHTML(), "file://" .. _spoonPath)
 		end
 	end)
 
 	self._editor:html(loadingHTML)
 	self:focusEditor()
+
+	-- If didFinishNavigation never fires (e.g. WKWebView hangs), don't leave the
+	-- "Loading…" placeholder up forever -- replace it with an error message.
+	loadTimer = hs.timer.doAfter(EDITOR_LOAD_TIMEOUT, function()
+		if not swapped and self._editor == editorRef then
+			self.log.w("Editor webview did not finish loading within " .. EDITOR_LOAD_TIMEOUT .. "s")
+			editorRef:html([[<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+				:root{color-scheme:light dark}
+				body{font:-apple-system-body;display:flex;height:100vh;margin:0;
+				align-items:center;justify-content:center;color:GrayText;text-align:center;padding:0 20px}
+				</style></head><body>Failed to load the editor. Please close this window and try again.</body></html>]])
+		end
+	end)
 end
 
 function obj:openConfig() hs.open(self.configPath) end
