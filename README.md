@@ -2,6 +2,7 @@
 
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Hammerspoon Spoon](https://img.shields.io/badge/Hammerspoon-Spoon-FFA500.svg)](https://www.hammerspoon.org/docs/index.html)
+[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://hugoh.github.io/AudioPilot.spoon/)
 
 A Hammerspoon Spoon that automatically switches audio devices based on a priority list. When devices are connected or disconnected, it selects the highest-priority available device for both input and output.
 
@@ -125,3 +126,7 @@ Click the 🔊 icon to see:
 ## Security & Permissions
 
 This Spoon does not require Accessibility API access. It uses Hammerspoon's built-in `hs.audiodevice` API, which may require allowing Hammerspoon in System Settings → Privacy & Security → Microphone (for input device control).
+
+## API documentation
+
+Full API reference is available at **<https://hugoh.github.io/AudioPilot.spoon/>**.

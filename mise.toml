@@ -1,21 +1,26 @@
 [tools]
 node = "lts"
-"github:orhun/git-cliff" = "latest"
-actionlint = "latest"
-dprint = "latest"
-ghalint = "latest"
-gitleaks = "latest"
-hk = "latest"
+"github:orhun/git-cliff" = "2.13.1"
+actionlint = "1.7.12"
+dprint = "0.55.1"
+ghalint = "1.5.6"
+gitleaks = "8.30.1"
+hk = "1.48.0"
 lua = "5.4"
-rumdl = "latest"
-shellcheck = "latest"
-shfmt = "latest"
-stylua = "latest"
-taplo = "latest"
-tombi = "latest"
-typos = "latest"
-# yamllint = "latest"
-zizmor = "latest"
+ruff = "0.15.20"
+rumdl = "0.2.25"
+shellcheck = "0.11.0"
+shfmt = "3.13.1"
+stylua = "2.5.2"
+taplo = "0.10.0"
+tombi = "1.1.6"
+typos = "1.47.2"
+yamllint = "1.38.0"
+zizmor = "1.26.1"
+
+[tasks.docs]
+run = "python3 scripts/generate_docs.py"
+description = "Generate docs/docs.json and docs/index.html from docstrings"
 
 [tasks.vendor]
 run = [
@@ -27,18 +32,19 @@ run = [
 description = "Fetch CSS/JS dependencies into vendor/"
 
 [tasks.package]
+depends = ["docs"]
 run = """
 mise run vendor
 rm -rf dist
 mkdir -p dist/AudioPilot.spoon
-cp init.lua editor.html LICENSE README.md dist/AudioPilot.spoon/
+cp init.lua editor.html LICENSE README.md docs/docs.json dist/AudioPilot.spoon/
 cp -r vendor dist/AudioPilot.spoon/
 cd dist
 zip -r ../AudioPilot.spoon.zip AudioPilot.spoon
 cd ..
 rm -rf dist
 """
-description = "Build a self-contained AudioPilot.spoon.zip"
+description = "Build a self-contained AudioPilot.spoon.zip (includes docs.json)"
 
 [tasks.test]
 run = "busted test_spec.lua --verbose"

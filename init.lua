@@ -1,3 +1,11 @@
+-- vim: set ft=lua:
+
+--- === AudioPilot ===
+---
+--- A Hammerspoon Spoon that automatically switches audio devices based on a priority list.
+---
+--- Download: https://github.com/hugoh/AudioPilot.spoon/releases/latest
+
 local _spoonPath = debug.getinfo(1, "S").source:sub(2):match("(.*/)") or "./"
 
 local obj = {}
@@ -9,8 +17,14 @@ obj.author = "Hugo Haas"
 obj.license = "MIT"
 obj.homepage = "https://github.com/hugoh/AudioPilot.spoon"
 
+--- AudioPilot.configPath
+--- Variable
+--- Path to the JSON config file (default: ~/.config/AudioPilot/config.json).
 obj.configPath = os.getenv("HOME") .. "/.config/AudioPilot/config.json"
-obj.notifyDelay = 5 -- seconds to wait before emitting a coalesced notification
+--- AudioPilot.notifyDelay
+--- Variable
+--- Seconds to wait before emitting a coalesced device-change notification (default: 5).
+obj.notifyDelay = 5
 
 obj._menu = nil
 obj._config = nil
@@ -507,6 +521,9 @@ end
 
 function obj:openConfig() hs.open(self.configPath) end
 
+--- AudioPilot:start()
+--- Method
+--- Load config, create the menu bar icon, enforce audio priorities, and start monitoring device changes.
 function obj:start()
 	self:loadConfig()
 	self._menu = hs.menubar.new()
@@ -531,6 +548,9 @@ function obj:start()
 	self.log.i("AudioPilot started")
 end
 
+--- AudioPilot:stop()
+--- Method
+--- Stop the audio device watcher, flush any pending notifications, and remove the menu bar icon.
 function obj:stop()
 	hs.audiodevice.watcher.stop()
 	if self._notifyTimer then
