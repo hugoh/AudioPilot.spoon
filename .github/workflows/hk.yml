@@ -1,4 +1,3 @@
----
 name: hk
 
 permissions: {}
@@ -10,26 +9,10 @@ on: # yamllint disable-line rule:truthy
       - renovate/**
   pull_request:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  lint:
-    timeout-minutes: 5
-    concurrency:
-      group: ${{ github.workflow }}-${{ github.event.pull_request.number ||
-        github.ref }}
-      cancel-in-progress: true
-    permissions:
-      contents: read
-      packages: read
-      # To report GitHub Actions status checks
-      statuses: write
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
-        with:
-          persist-credentials: false
-      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac
-      - name: hk checks
-        run: hk check --no-progress --profile ci --all
-      - name: Display hk log on failure
-        if: failure()
-        run: cat /home/runner/.local/state/hk/output.log
+  check:
+    uses: hugoh/spoon-tools/.github/workflows/spoon-hk.yml@c88e2a782be5da2eb883d94c32450dec117c5493

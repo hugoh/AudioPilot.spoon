@@ -1,36 +1,4 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    ":automergeAll",
-    ":automergeBranch",
-    "config:best-practices",
-    "schedule:monthly"
-  ],
-  "vulnerabilityAlerts": {
-    "labels": ["security"],
-    "automerge": true,
-    "schedule": ["at any time"]
-  },
-  "packageRules": [
-    {
-      "matchUpdateTypes": ["major"],
-      "groupName": "major updates",
-      "automerge": false
-    },
-    {
-      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
-      "matchManagers": ["!github-actions"],
-      "groupName": "non-major updates"
-    },
-    {
-      "matchManagers": ["github-actions"],
-      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
-      "groupName": "github actions updates"
-    },
-    {
-      "matchManagers": ["mise"],
-      "matchPackageNames": ["lua"],
-      "allowedVersions": "< 5.5"
-    }
-  ]
+  "extends": ["github>hugoh/spoon-tools"]
 }

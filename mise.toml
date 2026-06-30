@@ -18,7 +18,7 @@ yamllint = "1.38.0"
 zizmor = "1.26.1"
 
 [tasks.docs]
-run = "uvx --from git+https://github.com/hugoh/spoon-scripts spoon-generate-docs"
+run = "uvx --from git+https://github.com/hugoh/spoon-tools spoon-generate-docs"
 description = "Generate docs/docs.json and docs/index.html from docstrings"
 
 [tasks.vendor]
