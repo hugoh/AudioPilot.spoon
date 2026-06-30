@@ -12,13 +12,14 @@ local linters = new Mapping<String, Step> {
     ["leaks"] = Builtins.gitleaks
     ["ghalint"] = Builtins.ghalint_workflow
     ["lua"] = Builtins.luacheck
+    ["python"] = Builtins.ruff
     ["markdown"] = Builtins.rumdl
     ["mise"] = Builtins.mise
     ["shfmt"] = Builtins.shfmt
     ["stylua"] = Builtins.stylua
     ["toml"] = Builtins.tombi
     ["typos"] = Builtins.typos
-    // ["yaml"] = Builtins.yamllint
+     ["yaml"] = Builtins.yamllint
     ["workflows"] = Builtins.zizmor
 }
 
