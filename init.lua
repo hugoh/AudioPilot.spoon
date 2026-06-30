@@ -198,7 +198,11 @@ function obj:scanBluetoothDevices()
 		end
 		self:mergeBluetoothDevices(stdout)
 	end, { "SPBluetoothDataType", "-json" })
-	if task then task:start() end
+	if not task then
+		self.log.w("Failed to create Bluetooth scan task")
+		return
+	end
+	if not task:start() then self.log.w("Failed to start Bluetooth scan task") end
 end
 
 -- Stage a device-change notification for deviceType. Multiple calls within

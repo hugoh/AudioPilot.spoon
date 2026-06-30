@@ -2,7 +2,13 @@ local mock_hs
 local AudioPilot
 
 local function makeLogger()
-	return { i = function() end, w = function() end, d = function() end, v = function() end }
+	local l = { _infos = {}, _warnings = {}, _errors = {} }
+	l.i = function(msg) table.insert(l._infos, msg) end
+	l.w = function(msg) table.insert(l._warnings, msg) end
+	l.e = function(msg) table.insert(l._errors, msg) end
+	l.d = function() end
+	l.v = function() end
+	return l
 end
 
 local function makeMockDevice(name, isOutput, uid)
@@ -1066,6 +1072,30 @@ describe("AudioPilot", function()
 			assert.is_not_nil(item)
 			item.fn()
 			assert.is_not_nil(mock_hs.task._lastTask)
+		end)
+	end)
+
+	describe("scanBluetoothDevices", function()
+		it("logs a warning when hs.task.new fails to create a task", function()
+			mock_hs.task.new = function(_path, _cb, _args) return nil end
+			AudioPilot:scanBluetoothDevices()
+			assert.truthy(#AudioPilot.log._warnings > 0)
+		end)
+
+		it("logs a warning when the task fails to start", function()
+			mock_hs.task.new = function(_path, cb, _args)
+				local t = { _cb = cb }
+				function t.start(_self) return false end
+				mock_hs.task._lastTask = t
+				return t
+			end
+			AudioPilot:scanBluetoothDevices()
+			assert.truthy(#AudioPilot.log._warnings > 0)
+		end)
+
+		it("does not log a warning when the task starts successfully", function()
+			AudioPilot:scanBluetoothDevices()
+			assert.are.equal(0, #AudioPilot.log._warnings)
 		end)
 	end)
 
