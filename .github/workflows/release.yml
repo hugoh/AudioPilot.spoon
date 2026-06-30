@@ -12,6 +12,6 @@ on: # yamllint disable-line rule:truthy
 
 jobs:
   release:
-    uses: hugoh/spoon-tools/.github/workflows/spoon-release.yml@c88e2a782be5da2eb883d94c32450dec117c5493
+    uses: hugoh/spoon-tools/.github/workflows/spoon-release.yml@c8b0b55d0856e5844ab3f6007d531a194543005a
     with:
       spoon_name: AudioPilot
