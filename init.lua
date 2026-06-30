@@ -70,7 +70,13 @@ local DIRECTIONS = { "output", "input" }
 local function uidFromAddress(addr, dir) return (addr:gsub(":", "-")) .. ":" .. dir end
 
 function obj:loadConfig()
-	local config = hs.json.read(self.configPath) or {}
+	local config = hs.json.read(self.configPath)
+	-- hs.json.read returns nil both when the file is missing and when it exists
+	-- but fails to parse (malformed JSON). Distinguish the two via hs.fs.attributes
+	-- so a corrupt file is surfaced instead of being silently discarded and
+	-- immediately overwritten with an empty default config.
+	local parseFailed = config == nil and hs.fs.attributes(self.configPath) ~= nil
+	config = config or {}
 	local known = config.knownDevices or {}
 	self._config = {
 		outputPriority = copyList(config.outputPriority),
@@ -80,7 +86,16 @@ function obj:loadConfig()
 			input = copyKnown(known.input),
 		},
 	}
-	self:saveConfig()
+	if parseFailed then
+		self.log.w(
+			"Config file at "
+				.. self.configPath
+				.. " could not be parsed as JSON; leaving it on disk untouched "
+				.. "and using an empty config in memory for this session"
+		)
+	else
+		self:saveConfig()
+	end
 	self.log.i("Config loaded from " .. self.configPath)
 end
 

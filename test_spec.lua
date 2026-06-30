@@ -94,7 +94,14 @@ before_each(function()
 				end,
 			},
 		},
-		fs = { mkdir = function(_p) return true end },
+		fs = {
+			mkdir = function(_p) return true end,
+			-- Mirrors hs.fs.attributes(path): returns a (truthy) attributes table when
+			-- the path "exists" in our fake store, nil otherwise. Existence is modeled
+			-- on config_store so tests can simulate a present-but-unparsable file via
+			-- mock_hs._setConfig without touching the real filesystem.
+			attributes = function(p) return config_store[p] and {} or nil end,
+		},
 		task = {
 			_lastTask = nil,
 			new = function(_path, cb, _args)
@@ -267,6 +274,37 @@ describe("AudioPilot", function()
 			AudioPilot:loadConfig()
 			assert.is_not_nil(mkdirPath)
 			assert.truthy(mkdirPath:find("AudioPilot"))
+		end)
+
+		describe("malformed config file", function()
+			before_each(function()
+				-- Simulate an existing-but-unparsable file: the file "exists" (so
+				-- hs.fs.attributes finds it) but hs.json.read fails to parse it.
+				mock_hs._setConfig(AudioPilot.configPath, "this is not valid json")
+				mock_hs.json.read = function(_p) return nil end
+			end)
+
+			it("logs a warning instead of silently defaulting", function()
+				AudioPilot:loadConfig()
+				assert.truthy(#AudioPilot.log._warnings > 0)
+			end)
+
+			it("does not overwrite the file on disk", function()
+				local writeCount = 0
+				mock_hs.json.write = function(_d, _p, _pp)
+					writeCount = writeCount + 1
+					return true
+				end
+				AudioPilot:loadConfig()
+				assert.are.equal(0, writeCount)
+			end)
+
+			it("still leaves an in-memory default config usable", function()
+				AudioPilot:loadConfig()
+				assert.is.table(AudioPilot._config)
+				assert.are.equal(0, #AudioPilot._config.outputPriority)
+				assert.are.equal(0, #AudioPilot._config.inputPriority)
+			end)
 		end)
 	end)
 
