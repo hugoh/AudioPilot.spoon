@@ -12,7 +12,6 @@ local linters = new Mapping<String, Step> {
     ["leaks"] = Builtins.gitleaks
     ["ghalint"] = Builtins.ghalint_workflow
     ["lua"] = Builtins.luacheck
-    ["python"] = Builtins.ruff
     ["markdown"] = Builtins.rumdl
     ["mise"] = Builtins.mise
     ["shfmt"] = Builtins.shfmt
