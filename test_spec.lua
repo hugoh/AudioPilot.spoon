@@ -932,6 +932,20 @@ describe("AudioPilot", function()
 			assert.is_not_nil(mock_hs.task._lastTask)
 			assert.is_true(mock_hs.task._lastTask._started)
 		end)
+
+		it("closes an open editor webview on stop", function()
+			AudioPilot:start()
+			AudioPilot:openEditor()
+			local wv = AudioPilot._editor
+			AudioPilot:stop()
+			assert.is_true(wv._deleted)
+			assert.is_nil(AudioPilot._editor)
+		end)
+
+		it("does not error on stop when no editor is open", function()
+			AudioPilot:start()
+			assert.has_no.errors(function() AudioPilot:stop() end)
+		end)
 	end)
 
 	describe("uid-based matching", function()

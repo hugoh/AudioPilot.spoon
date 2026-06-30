@@ -562,6 +562,10 @@ function obj:stop()
 		self._menu:delete()
 		self._menu = nil
 	end
+	if self._editor then
+		self._editor:delete()
+		self._editor = nil
+	end
 	self.log.i("AudioPilot stopped")
 end
 
