@@ -2,7 +2,13 @@ local mock_hs
 local AudioPilot
 
 local function makeLogger()
-	return { i = function() end, w = function() end, d = function() end, v = function() end }
+	local l = { _infos = {}, _warnings = {}, _errors = {} }
+	l.i = function(msg) table.insert(l._infos, msg) end
+	l.w = function(msg) table.insert(l._warnings, msg) end
+	l.e = function(msg) table.insert(l._errors, msg) end
+	l.d = function() end
+	l.v = function() end
+	return l
 end
 
 local function makeMockDevice(name, isOutput, uid)
@@ -88,7 +94,14 @@ before_each(function()
 				end,
 			},
 		},
-		fs = { mkdir = function(_p) return true end },
+		fs = {
+			mkdir = function(_p) return true end,
+			-- Mirrors hs.fs.attributes(path): returns a (truthy) attributes table when
+			-- the path "exists" in our fake store, nil otherwise. Existence is modeled
+			-- on config_store so tests can simulate a present-but-unparsable file via
+			-- mock_hs._setConfig without touching the real filesystem.
+			attributes = function(p) return config_store[p] and {} or nil end,
+		},
 		task = {
 			_lastTask = nil,
 			new = function(_path, cb, _args)
@@ -262,6 +275,37 @@ describe("AudioPilot", function()
 			assert.is_not_nil(mkdirPath)
 			assert.truthy(mkdirPath:find("AudioPilot"))
 		end)
+
+		describe("malformed config file", function()
+			before_each(function()
+				-- Simulate an existing-but-unparsable file: the file "exists" (so
+				-- hs.fs.attributes finds it) but hs.json.read fails to parse it.
+				mock_hs._setConfig(AudioPilot.configPath, "this is not valid json")
+				mock_hs.json.read = function(_p) return nil end
+			end)
+
+			it("logs a warning instead of silently defaulting", function()
+				AudioPilot:loadConfig()
+				assert.truthy(#AudioPilot.log._warnings > 0)
+			end)
+
+			it("does not overwrite the file on disk", function()
+				local writeCount = 0
+				mock_hs.json.write = function(_d, _p, _pp)
+					writeCount = writeCount + 1
+					return true
+				end
+				AudioPilot:loadConfig()
+				assert.are.equal(0, writeCount)
+			end)
+
+			it("still leaves an in-memory default config usable", function()
+				AudioPilot:loadConfig()
+				assert.is.table(AudioPilot._config)
+				assert.are.equal(0, #AudioPilot._config.outputPriority)
+				assert.are.equal(0, #AudioPilot._config.inputPriority)
+			end)
+		end)
 	end)
 
 	describe("saveConfig", function()
@@ -281,6 +325,21 @@ describe("AudioPilot", function()
 			AudioPilot:saveConfig()
 			assert.are.equal("mkdir", callOrder[1])
 			assert.are.equal("write", callOrder[2])
+		end)
+
+		it("logs an error and does not claim success when hs.json.write fails", function()
+			AudioPilot._config = { outputPriority = {}, inputPriority = {}, knownDevices = { output = {}, input = {} } }
+			mock_hs.json.write = function(_d, _p, _pp) return false end
+			AudioPilot:saveConfig()
+			assert.truthy(#AudioPilot.log._errors > 0)
+			assert.are.equal(0, #AudioPilot.log._infos)
+		end)
+
+		it("logs success info when hs.json.write succeeds", function()
+			AudioPilot._config = { outputPriority = {}, inputPriority = {}, knownDevices = { output = {}, input = {} } }
+			AudioPilot:saveConfig()
+			assert.truthy(#AudioPilot.log._infos > 0)
+			assert.are.equal(0, #AudioPilot.log._errors)
 		end)
 	end)
 
@@ -872,6 +931,43 @@ describe("AudioPilot", function()
 			ctrl._callback({ body = { action = "cancel" } })
 			assert.is_nil(AudioPilot._editor)
 		end)
+
+		describe("load timeout", function()
+			it("shows an error message if navigation never finishes", function()
+				AudioPilot:openEditor()
+				local wv = mock_hs.webview._lastWebview
+				local timer = mock_hs.timer._pending
+				assert.is_not_nil(timer)
+				timer._fn()
+				assert.truthy(wv._html:lower():find("failed to load"))
+			end)
+
+			it("logs a warning if navigation never finishes", function()
+				AudioPilot:openEditor()
+				local timer = mock_hs.timer._pending
+				timer._fn()
+				assert.truthy(#AudioPilot.log._warnings > 0)
+			end)
+
+			it("does not show the timeout error once navigation has finished", function()
+				AudioPilot:openEditor()
+				local wv = mock_hs.webview._lastWebview
+				wv._navCb("didFinishNavigation")
+				local loadedHTML = wv._html
+				local timer = mock_hs.timer._pending
+				timer._fn()
+				assert.are.equal(loadedHTML, wv._html)
+			end)
+
+			it("does not fire after the editor was closed", function()
+				AudioPilot:openEditor()
+				local wv = mock_hs.webview._lastWebview
+				wv._windowCb("closing")
+				local timer = mock_hs.timer._pending
+				assert.has_no.errors(function() timer._fn() end)
+				assert.is_nil(AudioPilot._editor)
+			end)
+		end)
 	end)
 
 	describe("start and stop", function()
@@ -931,6 +1027,20 @@ describe("AudioPilot", function()
 			AudioPilot:start()
 			assert.is_not_nil(mock_hs.task._lastTask)
 			assert.is_true(mock_hs.task._lastTask._started)
+		end)
+
+		it("closes an open editor webview on stop", function()
+			AudioPilot:start()
+			AudioPilot:openEditor()
+			local wv = AudioPilot._editor
+			AudioPilot:stop()
+			assert.is_true(wv._deleted)
+			assert.is_nil(AudioPilot._editor)
+		end)
+
+		it("does not error on stop when no editor is open", function()
+			AudioPilot:start()
+			assert.has_no.errors(function() AudioPilot:stop() end)
 		end)
 	end)
 
@@ -1052,6 +1162,30 @@ describe("AudioPilot", function()
 			assert.is_not_nil(item)
 			item.fn()
 			assert.is_not_nil(mock_hs.task._lastTask)
+		end)
+	end)
+
+	describe("scanBluetoothDevices", function()
+		it("logs a warning when hs.task.new fails to create a task", function()
+			mock_hs.task.new = function(_path, _cb, _args) return nil end
+			AudioPilot:scanBluetoothDevices()
+			assert.truthy(#AudioPilot.log._warnings > 0)
+		end)
+
+		it("logs a warning when the task fails to start", function()
+			mock_hs.task.new = function(_path, cb, _args)
+				local t = { _cb = cb }
+				function t.start(_self) return false end
+				mock_hs.task._lastTask = t
+				return t
+			end
+			AudioPilot:scanBluetoothDevices()
+			assert.truthy(#AudioPilot.log._warnings > 0)
+		end)
+
+		it("does not log a warning when the task starts successfully", function()
+			AudioPilot:scanBluetoothDevices()
+			assert.are.equal(0, #AudioPilot.log._warnings)
 		end)
 	end)
 
