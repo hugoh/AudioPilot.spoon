@@ -569,6 +569,7 @@ function obj:openConfig() hs.open(self.configPath) end
 --- Method
 --- Load config, create the menu bar icon, enforce audio priorities, and start monitoring device changes.
 function obj:start()
+	self.log.f("Starting %s v%s", self.name, self.version)
 	self:loadConfig()
 	self._menu = hs.menubar.new()
 	self._menu:setTitle("🔊")
@@ -596,6 +597,7 @@ end
 --- Method
 --- Stop the audio device watcher, flush any pending notifications, and remove the menu bar icon.
 function obj:stop()
+	self.log.f("Stopping %s v%s", self.name, self.version)
 	hs.audiodevice.watcher.stop()
 	if self._notifyTimer then
 		self._notifyTimer:stop()
@@ -610,7 +612,6 @@ function obj:stop()
 		self._editor:delete()
 		self._editor = nil
 	end
-	self.log.i("AudioPilot stopped")
 end
 
 return obj

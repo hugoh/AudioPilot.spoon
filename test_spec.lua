@@ -4,6 +4,7 @@ local AudioPilot
 local function makeLogger()
 	local l = { _infos = {}, _warnings = {}, _errors = {} }
 	l.i = function(msg) table.insert(l._infos, msg) end
+	l.f = function(fmt, ...) table.insert(l._infos, string.format(fmt, ...)) end
 	l.w = function(msg) table.insert(l._warnings, msg) end
 	l.e = function(msg) table.insert(l._errors, msg) end
 	l.d = function() end
