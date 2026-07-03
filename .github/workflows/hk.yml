@@ -18,4 +18,4 @@ concurrency:
 
 jobs:
   check:
-    uses: hugoh/spoon-tools/.github/workflows/spoon-hk.yml@c8b0b55d0856e5844ab3f6007d531a194543005a
+    uses: hugoh/spoon-tools/.github/workflows/spoon-hk.yml@c8b0b55d0856e5844ab3f6007d531a194543005a # v1.0.0
