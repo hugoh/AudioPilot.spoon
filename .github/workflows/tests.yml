@@ -12,6 +12,6 @@ on: # yamllint disable-line rule:truthy
 
 jobs:
   test:
-    uses: hugoh/spoon-tools/.github/workflows/spoon-tests.yml@c8b0b55d0856e5844ab3f6007d531a194543005a
+    uses: hugoh/spoon-tools/.github/workflows/spoon-tests.yml@c8b0b55d0856e5844ab3f6007d531a194543005a # v1.0.0
     with:
       pre_test: mise run vendor
