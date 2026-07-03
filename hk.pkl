@@ -18,16 +18,16 @@ local Common = new Group {
         ["ghalint"] = Builtins.ghalint_workflow
         ["markdown"] = Builtins.rumdl
         ["zizmor"] = Builtins.zizmor
+        ["typos"] = Builtins.typos
+        ["mise"] = Builtins.mise
     }
 }
 
 local linters = new Mapping<String, Step> {
     ...Common.steps
     ["lua"] = Builtins.luacheck
-    ["mise"] = Builtins.mise
     ["stylua"] = Builtins.stylua
     ["toml"] = Builtins.tombi
-    ["typos"] = Builtins.typos
     ["yaml"] = Builtins.ryl
 }
 
