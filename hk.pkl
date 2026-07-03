@@ -1,9 +1,13 @@
-amends "package://github.com/jdx/hk/releases/download/v1.43.0/hk@1.43.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.43.0/hk@1.43.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.49.0/hk@1.49.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.49.0/hk@1.49.0#/Builtins.pkl"
 
 local linters = new Mapping<String, Step> {
     ["actions"] = Builtins.actionlint
+    ["pinact"] = Builtins.pinact
     ["conflicts"] = Builtins.check_merge_conflict
+    ["trailing-ws"] = Builtins.trailing_whitespace
+    ["line-endings"] = Builtins.mixed_line_ending
+    ["newlines"] = Builtins.newlines
     ["case-conflict"] = Builtins.check_case_conflict
     ["large-files"] = Builtins.check_added_large_files
     ["executables"] = Builtins.check_executables_have_shebangs
@@ -17,7 +21,7 @@ local linters = new Mapping<String, Step> {
     ["stylua"] = Builtins.stylua
     ["toml"] = Builtins.tombi
     ["typos"] = Builtins.typos
-     ["yaml"] = Builtins.yamllint
+     ["yaml"] = Builtins.ryl
     ["workflows"] = Builtins.zizmor
 }
 
