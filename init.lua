@@ -33,15 +33,7 @@ obj.log = hs.logger.new("AudioPilot", "info")
 
 -- hs.json.read returns the *same* shared table instance for every empty array,
 -- so copy each list into its own table to avoid aliasing fields together.
-local function copyList(t)
-	local out = {}
-	if t then
-		for _, v in ipairs(t) do
-			out[#out + 1] = v
-		end
-	end
-	return out
-end
+local function copyList(t) return hs.fnutils.copy(t or {}) end
 
 -- knownDevices entries are { uid = ..., name = ... } objects; copy them into
 -- fresh tables (same anti-aliasing reason as copyList) and drop any malformed
@@ -57,10 +49,7 @@ local function copyKnown(t)
 end
 
 local function findByUid(list, uid)
-	for _, v in ipairs(list) do
-		if v.uid == uid then return v end
-	end
-	return nil
+	return hs.fnutils.find(list, function(v) return v.uid == uid end)
 end
 
 local DIRECTIONS = { "output", "input" }
