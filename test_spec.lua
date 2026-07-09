@@ -95,6 +95,21 @@ before_each(function()
 				end,
 			},
 		},
+		fnutils = {
+			copy = function(t)
+				local out = {}
+				for k, v in pairs(t) do
+					out[k] = v
+				end
+				return out
+			end,
+			find = function(t, fn)
+				for _, v in ipairs(t) do
+					if fn(v) then return v end
+				end
+				return nil
+			end,
+		},
 		fs = {
 			mkdir = function(_p) return true end,
 			-- Mirrors hs.fs.attributes(path): returns a (truthy) attributes table when
