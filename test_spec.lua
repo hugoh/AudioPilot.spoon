@@ -572,6 +572,14 @@ describe("AudioPilot", function()
 				assert.are.equal(0, #mock_hs.notify._sent)
 			end)
 
+			it("sends the notification immediately when notifyDelay is 0", function()
+				makeMockDevice("DevA", true)
+				AudioPilot._config.outputPriority = { "DevA" }
+				AudioPilot.notifyDelay = 0
+				AudioPilot:_bufferNotify("output", nil, "DevA", "DevA")
+				assert.are.equal(1, #mock_hs.notify._sent)
+			end)
+
 			it("updates _lastAnnounced only after flush", function()
 				makeMockDevice("DevA", true)
 				AudioPilot._config.outputPriority = { "DevA" }
