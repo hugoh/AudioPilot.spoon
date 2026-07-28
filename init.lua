@@ -229,7 +229,12 @@ function obj:_bufferNotify(deviceType, fromUid, toUid, toName)
 		self._notifyBuffer[deviceType] = { from = fromUid, to = toUid, toName = toName }
 	end
 	if self._notifyTimer then self._notifyTimer:stop() end
-	self._notifyTimer = hs.timer.doAfter(self.notifyDelay, function() self:_flushNotify() end)
+	if self.notifyDelay <= 0 then
+		self._notifyTimer = nil
+		self:_flushNotify()
+	else
+		self._notifyTimer = hs.timer.doAfter(self.notifyDelay, function() self:_flushNotify() end)
+	end
 end
 
 -- Emit one notification covering all directions that moved since the last flush.
