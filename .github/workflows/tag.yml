@@ -15,4 +15,4 @@ concurrency:
 
 jobs:
   tag:
-    uses: hugoh/spoon-tools/.github/workflows/spoon-tag.yml@d2b5ed14d0971e0f71e1459a697d78195e324f2a # dispatch release.yml after tagging (no tag yet)
+    uses: hugoh/spoon-tools/.github/workflows/spoon-tag.yml@d2b5ed14d0971e0f71e1459a697d78195e324f2a # v1.2.1
