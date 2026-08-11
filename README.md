@@ -88,23 +88,24 @@ A typical config looks like this:
 - **`inputPriority`** — ordered list of input device UIDs, most preferred first
 - **`knownDevices`** — all devices ever seen, stored as `{uid, name}` objects (auto-updated; used to show disconnected devices in the menu and editor)
 
-To change the config file location:
+Settings can be set individually, or all at once with `:configure()`:
 
 ```lua
-spoon.AudioPilot.configPath = "/path/to/your/config.json"
+spoon.AudioPilot:configure({
+	configPath = "/path/to/your/config.json",
+	notifyDelay = 3, -- seconds to wait before emitting a coalesced notification (default 5)
+	menuIcon = "NSTouchBarAudioOutputVolumeLowTemplate", -- a monochrome menu bar glyph instead of the default 🔊
+})
 spoon.AudioPilot:start()
 ```
 
-To change how long AudioPilot waits before emitting a coalesced notification (default 5 seconds):
-
-```lua
-spoon.AudioPilot.notifyDelay = 3
-spoon.AudioPilot:start()
-```
+- **`configPath`** — where the config file lives (default `~/.config/AudioPilot/config.json`)
+- **`notifyDelay`** — seconds to wait before emitting a coalesced device-change notification (default `5`)
+- **`menuIcon`** — what to show in the menu bar (default `"🔊"`). Either a literal title string (e.g. an emoji), or the name of an `hs.image.imageFromName` system image for a monochrome template icon that adapts to the menu bar's light/dark appearance — e.g. `"NSTouchBarAudioOutputVolumeLowTemplate"`, `"NSTouchBarAudioOutputVolumeMediumTemplate"`, `"NSTouchBarAudioOutputVolumeHighTemplate"`, or `"NSTouchBarAudioOutputVolumeOffTemplate"`
 
 ## Menu Bar
 
-Click the 🔊 icon to see:
+Click the menu bar icon to see:
 
 1. **Current devices** — the active output and input device
 2. **Output Priority** — your priority list with `*` marking the active device and `(disconnected)` for unavailable ones

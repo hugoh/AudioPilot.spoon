@@ -147,10 +147,19 @@ before_each(function()
 			new = function()
 				local m = {}
 				function m:setTitle(t) self._title = t end
+				function m:setIcon(icon, template)
+					self._icon = icon
+					self._iconTemplate = template
+				end
 				function m:setMenu(items) self._menuItems = items end
 				function m:delete() self._deleted = true end
 				return m
 			end,
+		},
+		image = {
+			-- Tests that exercise the hs.image icon path override this to return a
+			-- fake icon; by default no name resolves, so callers fall back to setTitle.
+			imageFromName = function(_name) return nil end,
 		},
 		audiodevice = {
 			_outputDevices = {},
@@ -237,6 +246,7 @@ describe("AudioPilot", function()
 			assert.are.equal("function", type(AudioPilot.openConfig))
 			assert.are.equal("function", type(AudioPilot.openEditor))
 			assert.are.equal("function", type(AudioPilot._buildEditorHTML))
+			assert.are.equal("function", type(AudioPilot.configure))
 		end)
 
 		it("initializes with nil menu", function() assert.is_nil(AudioPilot._menu) end)
@@ -246,6 +256,17 @@ describe("AudioPilot", function()
 		it("initializes with nil editor", function() assert.is_nil(AudioPilot._editor) end)
 
 		it("has logger instance", function() assert.is.table(AudioPilot.log) end)
+	end)
+
+	describe("configure", function()
+		it("sets provided fields and leaves others untouched", function()
+			local before = AudioPilot.configPath
+			local result = AudioPilot:configure({ notifyDelay = 3, menuIcon = "custom" })
+			assert.are.equal(3, AudioPilot.notifyDelay)
+			assert.are.equal("custom", AudioPilot.menuIcon)
+			assert.are.equal(before, AudioPilot.configPath)
+			assert.are.equal(AudioPilot, result)
+		end)
 	end)
 
 	describe("loadConfig", function()
@@ -680,6 +701,20 @@ describe("AudioPilot", function()
 		end)
 
 		it("sets menu title to sound icon", function() assert.are.equal("🔊", AudioPilot._menu._title) end)
+
+		it("uses a template icon when menuIcon names a system image", function()
+			local fakeIcon = { _sized = nil }
+			function fakeIcon:setSize(s) self._sized = s end
+			mock_hs.image.imageFromName = function(name)
+				if name == "SomeSystemImage" then return fakeIcon end
+				return nil
+			end
+			AudioPilot.menuIcon = "SomeSystemImage"
+			AudioPilot:updateMenu()
+			assert.are.equal(fakeIcon, AudioPilot._menu._icon)
+			assert.is_true(AudioPilot._menu._iconTemplate)
+			assert.is_not_nil(fakeIcon._sized)
+		end)
 
 		it("menu contains current output device name", function()
 			local item = findMenuItem(AudioPilot._menu._menuItems, "Output:")
