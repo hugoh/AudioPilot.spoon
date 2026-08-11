@@ -25,11 +25,30 @@ obj.configPath = os.getenv("HOME") .. "/.config/AudioPilot/config.json"
 --- Variable
 --- Seconds to wait before emitting a coalesced device-change notification (default: 5).
 obj.notifyDelay = 5
+--- AudioPilot.menuIcon
+--- Variable
+--- What to show in the menu bar (default: "🔊"). Either a literal title string (e.g. an
+--- emoji), or the name of an `hs.image.imageFromName` system image (e.g.
+--- "NSTouchBarAudioOutputVolumeLowTemplate") for a monochrome template icon that adapts
+--- to the menu bar's light/dark appearance.
+obj.menuIcon = "🔊"
 
 obj._menu = nil
 obj._config = nil
 obj._editor = nil
 obj.log = hs.logger.new("AudioPilot", "info")
+
+-- obj.menuIcon may name an hs.image system image (a monochrome template icon) or be a
+-- literal title string (e.g. an emoji); try the former and fall back to the latter.
+local function applyMenuIcon(menu, iconSpec)
+	local icon = hs.image.imageFromName(iconSpec)
+	if icon then
+		icon:setSize({ w = 18, h = 18 })
+		menu:setIcon(icon, true)
+	else
+		menu:setTitle(iconSpec)
+	end
+end
 
 -- hs.json.read returns the *same* shared table instance for every empty array,
 -- so copy each list into its own table to avoid aliasing fields together.
@@ -393,7 +412,7 @@ function obj:updateMenu()
 		fn = function() self:openConfig() end,
 	})
 
-	self._menu:setTitle("🔊")
+	applyMenuIcon(self._menu, self.menuIcon)
 	self._menu:setMenu(items)
 end
 
@@ -559,6 +578,20 @@ end
 
 function obj:openConfig() hs.open(self.configPath) end
 
+--- AudioPilot:configure(opts)
+--- Method
+--- Set one or more of AudioPilot's spoon-level variables (configPath, notifyDelay,
+--- menuIcon) from a table. Call before `:start()`.
+---
+--- Parameters:
+---  * opts - a table with any of `configPath`, `notifyDelay`, `menuIcon`
+function obj:configure(opts)
+	for _, key in ipairs({ "configPath", "notifyDelay", "menuIcon" }) do
+		if opts[key] ~= nil then self[key] = opts[key] end
+	end
+	return self
+end
+
 --- AudioPilot:start()
 --- Method
 --- Load config, create the menu bar icon, enforce audio priorities, and start monitoring device changes.
@@ -566,7 +599,7 @@ function obj:start()
 	self.log.f("Starting %s v%s", self.name, self.version)
 	self:loadConfig()
 	self._menu = hs.menubar.new()
-	self._menu:setTitle("🔊")
+	applyMenuIcon(self._menu, self.menuIcon)
 	-- Prime the change tracker with the current defaults so a reload while already
 	-- on the best device does not fire a spurious notification; a real switch (or a
 	-- device connected during reload) still differs from these and notifies.
@@ -585,6 +618,7 @@ function obj:start()
 	hs.audiodevice.watcher.setCallback(function(event) self:onDeviceChange(event) end)
 	hs.audiodevice.watcher.start()
 	self.log.i("AudioPilot started")
+	return self
 end
 
 --- AudioPilot:stop()
@@ -606,6 +640,7 @@ function obj:stop()
 		self._editor:delete()
 		self._editor = nil
 	end
+	return self
 end
 
 return obj
