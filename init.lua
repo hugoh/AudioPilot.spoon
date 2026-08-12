@@ -28,9 +28,10 @@ obj.notifyDelay = 5
 --- AudioPilot.menuIcon
 --- Variable
 --- What to show in the menu bar (default: "🔊"). Either a literal title string (e.g. an
---- emoji), or the name of an `hs.image.imageFromName` system image (e.g.
---- "NSTouchBarAudioOutputVolumeLowTemplate") for a monochrome template icon that adapts
---- to the menu bar's light/dark appearance.
+--- emoji), or a table `{ image = "SystemImageName" }` naming an
+--- `hs.image.imageFromName` system image (e.g.
+--- `{ image = "NSTouchBarAudioOutputVolumeLowTemplate" }`) for a monochrome template
+--- icon that adapts to the menu bar's light/dark appearance.
 obj.menuIcon = "🔊"
 
 obj._menu = nil
@@ -38,13 +39,19 @@ obj._config = nil
 obj._editor = nil
 obj.log = hs.logger.new("AudioPilot", "info")
 
--- obj.menuIcon may name an hs.image system image (a monochrome template icon) or be a
--- literal title string (e.g. an emoji); try the former and fall back to the latter.
+-- obj.menuIcon is either a literal title string (e.g. an emoji) or a table
+-- { image = "SystemImageName" } naming an hs.image system image (a monochrome
+-- template icon); the kind is decided by the value's shape, not by probing.
 local function applyMenuIcon(menu, iconSpec)
-	local icon = hs.image.imageFromName(iconSpec)
-	if icon then
-		icon:setSize({ w = 18, h = 18 })
-		menu:setIcon(icon, true)
+	if type(iconSpec) == "table" and iconSpec.image then
+		local icon = hs.image.imageFromName(iconSpec.image)
+		if icon then
+			icon:setSize({ w = 18, h = 18 })
+			menu:setIcon(icon, true)
+		else
+			obj.log.e("Unknown menuIcon system image: " .. tostring(iconSpec.image))
+			menu:setTitle("")
+		end
 	else
 		menu:setTitle(iconSpec)
 	end
