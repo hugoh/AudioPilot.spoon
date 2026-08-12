@@ -94,14 +94,14 @@ Settings can be set individually, or all at once with `:configure()`:
 spoon.AudioPilot:configure({
 	configPath = "/path/to/your/config.json",
 	notifyDelay = 3, -- seconds to wait before emitting a coalesced notification (default 5)
-	menuIcon = "NSTouchBarAudioOutputVolumeLowTemplate", -- a monochrome menu bar glyph instead of the default 🔊
+	menuIcon = { image = "NSTouchBarAudioOutputVolumeLowTemplate" }, -- a monochrome menu bar icon instead of the default 🔊
 })
 spoon.AudioPilot:start()
 ```
 
 - **`configPath`** — where the config file lives (default `~/.config/AudioPilot/config.json`)
 - **`notifyDelay`** — seconds to wait before emitting a coalesced device-change notification (default `5`)
-- **`menuIcon`** — what to show in the menu bar (default `"🔊"`). Either a literal title string (e.g. an emoji), or the name of an `hs.image.imageFromName` system image for a monochrome template icon that adapts to the menu bar's light/dark appearance — e.g. `"NSTouchBarAudioOutputVolumeLowTemplate"`, `"NSTouchBarAudioOutputVolumeMediumTemplate"`, `"NSTouchBarAudioOutputVolumeHighTemplate"`, or `"NSTouchBarAudioOutputVolumeOffTemplate"`
+- **`menuIcon`** — what to show in the menu bar (default `"🔊"`). Either a literal title string (e.g. an emoji), or a table `{ image = "SystemImageName" }` naming an `hs.image.imageFromName` system image for a monochrome template icon that adapts to the menu bar's light/dark appearance — e.g. `{ image = "NSTouchBarAudioOutputVolumeLowTemplate" }`, `{ image = "NSTouchBarAudioOutputVolumeMediumTemplate" }`, `{ image = "NSTouchBarAudioOutputVolumeHighTemplate" }`, or `{ image = "NSTouchBarAudioOutputVolumeOffTemplate" }`
 
 ## Menu Bar
 

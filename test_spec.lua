@@ -709,11 +709,19 @@ describe("AudioPilot", function()
 				if name == "SomeSystemImage" then return fakeIcon end
 				return nil
 			end
-			AudioPilot.menuIcon = "SomeSystemImage"
+			AudioPilot.menuIcon = { image = "SomeSystemImage" }
 			AudioPilot:updateMenu()
 			assert.are.equal(fakeIcon, AudioPilot._menu._icon)
 			assert.is_true(AudioPilot._menu._iconTemplate)
 			assert.is_not_nil(fakeIcon._sized)
+		end)
+
+		it("falls back to an empty title when menuIcon names an unknown system image", function()
+			mock_hs.image.imageFromName = function() return nil end
+			AudioPilot.menuIcon = { image = "Bogus" }
+			AudioPilot:updateMenu()
+			assert.are.equal("", AudioPilot._menu._title)
+			assert.is_nil(AudioPilot._menu._icon)
 		end)
 
 		it("menu contains current output device name", function()
