@@ -599,11 +599,18 @@ function obj:configure(opts)
 	return self
 end
 
+--- AudioPilot:init()
+--- Method
+--- Called automatically by `hs.loadSpoon()`. Logs the loaded version.
+function obj:init()
+	self.log.f("Loaded %s v%s", self.name, self.version)
+	return self
+end
+
 --- AudioPilot:start()
 --- Method
 --- Load config, create the menu bar icon, enforce audio priorities, and start monitoring device changes.
 function obj:start()
-	self.log.f("Starting %s v%s", self.name, self.version)
 	self:loadConfig()
 	self._menu = hs.menubar.new()
 	applyMenuIcon(self._menu, self.menuIcon)
