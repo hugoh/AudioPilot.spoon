@@ -1,6 +1,5 @@
 [tools]
 node = "24.20.0"
-"github:orhun/git-cliff" = "2.13.1"
 actionlint = "1.7.12"
 biome = "2.5.4"
 pinact = "4.1.1"
