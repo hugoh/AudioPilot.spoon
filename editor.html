@@ -180,13 +180,6 @@
       // Devices the user removed from "Other Known Devices"; committed on Save.
       const forgotten = { output: [], input: [] };
 
-      function esc(s) {
-        return s
-          .replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;");
-      }
-
       function getOrder(id) {
         return [...document.getElementById(id).querySelectorAll(".pi")].map(
           (e) => e.dataset.uid,
@@ -212,12 +205,12 @@
           const d = document.createElement("div");
           d.className = "item" + (pri ? " pi" : "");
           d.dataset.uid = uid;
-          const label = esc(names[uid] || uid);
+          const label = names[uid] || uid;
           if (pri) {
             d.innerHTML =
-              '<span class="handle">⠿</span><span class="name">' +
-              label +
-              '</span><button class="btn rbtn" title="Remove">✕</button>';
+              '<span class="handle">⠿</span><span class="name"></span>' +
+              '<button class="btn rbtn" title="Remove">✕</button>';
+            d.querySelector(".name").textContent = label;
             d.querySelector(".rbtn").addEventListener("click", () => {
               syncDOM();
               state[type].priority = state[type].priority.filter(
@@ -228,10 +221,10 @@
             });
           } else {
             d.innerHTML =
-              '<span class="name">' +
-              label +
-              '</span><button class="btn abtn" title="Add to priority">＋</button>' +
+              '<span class="name"></span>' +
+              '<button class="btn abtn" title="Add to priority">＋</button>' +
               '<button class="btn fbtn" title="Forget this device">🗑</button>';
+            d.querySelector(".name").textContent = label;
             d.querySelector(".abtn").addEventListener("click", () => {
               syncDOM();
               state[type].unranked = state[type].unranked.filter(
