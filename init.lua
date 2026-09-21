@@ -613,6 +613,7 @@ end
 function obj:start()
 	self:loadConfig()
 	self._menu = hs.menubar.new()
+	self._menu:autosaveName(self.name)
 	applyMenuIcon(self._menu, self.menuIcon)
 	-- Prime the change tracker with the current defaults so a reload while already
 	-- on the best device does not fire a spurious notification; a real switch (or a

@@ -152,6 +152,7 @@ before_each(function()
 					self._iconTemplate = template
 				end
 				function m:setMenu(items) self._menuItems = items end
+				function m:autosaveName(name) self._autosaveName = name end
 				function m:delete() self._deleted = true end
 				return m
 			end,
@@ -1046,6 +1047,11 @@ describe("AudioPilot", function()
 		it("sets menu title to sound icon on start", function()
 			AudioPilot:start()
 			assert.are.equal("🔊", AudioPilot._menu._title)
+		end)
+
+		it("sets menu autosaveName on start", function()
+			AudioPilot:start()
+			assert.are.equal("AudioPilot", AudioPilot._menu._autosaveName)
 		end)
 
 		it("sets audio watcher callback on start", function()
