@@ -195,6 +195,7 @@ before_each(function()
 		function wv:windowCallback(fn) self._windowCb = fn end
 		function wv:allowTextEntry(v) self._textEntry = v end
 		function wv:navigationCallback(fn) self._navCb = fn end
+		function wv:deleteOnClose(v) self._deleteOnClose = v end
 		function wv:bringToFront(_v) self._front = true end
 		function wv.hswindow()
 			return { focus = function() end }
@@ -1000,6 +1001,24 @@ describe("AudioPilot", function()
 			assert.is_nil(AudioPilot._editor)
 		end)
 
+		it("deletes the webview when its window is closed, so it isn't leaked", function()
+			AudioPilot:openEditor()
+			assert.is_true(mock_hs.webview._lastWebview._deleteOnClose)
+		end)
+
+		it("does not load a closed editor's content into a newly opened one", function()
+			AudioPilot:openEditor()
+			local first = mock_hs.webview._lastWebview
+			first._windowCb("closing")
+			AudioPilot:openEditor()
+			local second = mock_hs.webview._lastWebview
+			local loading = second._html
+
+			first._navCb("didFinishNavigation")
+
+			assert.are.equal(loading, second._html)
+		end)
+
 		describe("load timeout", function()
 			it("shows an error message if navigation never finishes", function()
 				AudioPilot:openEditor()
@@ -1088,6 +1107,14 @@ describe("AudioPilot", function()
 			local menu = AudioPilot._menu
 			AudioPilot:stop()
 			assert.is_true(menu._deleted)
+		end)
+
+		it("replaces the menu bar item when started twice", function()
+			AudioPilot:start()
+			local first = AudioPilot._menu
+			AudioPilot:start()
+			assert.is_true(first._deleted)
+			assert.are_not.equal(first, AudioPilot._menu)
 		end)
 
 		it("sets menu to nil on stop", function()

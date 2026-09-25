@@ -519,6 +519,9 @@ function obj:openEditor()
 	-- text entry is allowed; without this the window never takes focus and
 	-- drag-to-reorder does not work.
 	self._editor:allowTextEntry(true)
+	-- Its callbacks reference it, so a closed-but-undeleted webview is never
+	-- garbage-collected.
+	self._editor:deleteOnClose(true)
 
 	self._editor:windowCallback(function(action)
 		if action == "closing" then self._editor = nil end
@@ -559,10 +562,10 @@ function obj:openEditor()
 	local loadTimer
 
 	self._editor:navigationCallback(function(action)
-		if action == "didFinishNavigation" and not swapped and self._editor then
+		if action == "didFinishNavigation" and not swapped and self._editor == editorRef then
 			swapped = true
 			if loadTimer then loadTimer:stop() end
-			self._editor:html(self:_buildEditorHTML(), "file://" .. _spoonPath)
+			editorRef:html(self:_buildEditorHTML(), "file://" .. _spoonPath)
 		end
 	end)
 
@@ -611,6 +614,7 @@ end
 --- Method
 --- Load config, create the menu bar icon, enforce audio priorities, and start monitoring device changes.
 function obj:start()
+	if self._menu then self:stop() end
 	self:loadConfig()
 	self._menu = hs.menubar.new()
 	self._menu:autosaveName(self.name)
