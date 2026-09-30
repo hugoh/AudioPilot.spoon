@@ -17,6 +17,20 @@ local function makeMockDevice(name, isOutput, uid)
 	function d:name() return self._name end
 	function d:uid() return self._uid end
 	function d:transportType() return self._transport end
+	function d:muted() return self._muted end
+	function d:volume() return self._volume end
+	function d:watcherCallback(fn)
+		self._watchCb = fn
+		return self
+	end
+	function d:watcherStart()
+		self._watching = true
+		return self
+	end
+	function d:watcherStop()
+		self._watching = false
+		return self
+	end
 	function d:setDefaultOutputDevice() mock_hs.audiodevice._defaultOutput = self end
 	function d:setDefaultInputDevice() mock_hs.audiodevice._defaultInput = self end
 	if isOutput then
@@ -268,6 +282,29 @@ describe("AudioPilot", function()
 			assert.are.equal("custom", AudioPilot.menuIcon)
 			assert.are.equal(before, AudioPilot.configPath)
 			assert.are.equal(AudioPilot, result)
+		end)
+
+		it("applies the bw preset to both icons", function()
+			AudioPilot:configure({ iconPreset = "bw" })
+			assert.are.equal("NSTouchBarAudioOutputVolumeLowTemplate", AudioPilot.menuIcon.image)
+			assert.are.equal("NSTouchBarAudioOutputVolumeOffTemplate", AudioPilot.mutedIcon.image)
+		end)
+
+		it("applies the color preset", function()
+			AudioPilot:configure({ iconPreset = "bw" })
+			AudioPilot:configure({ iconPreset = "color" })
+			assert.are.equal("🔊", AudioPilot.menuIcon)
+			assert.are.equal("🔇", AudioPilot.mutedIcon)
+		end)
+
+		it("lets explicit icons override the preset", function()
+			AudioPilot:configure({ iconPreset = "bw", mutedIcon = "x" })
+			assert.are.equal("x", AudioPilot.mutedIcon)
+			assert.are.equal("NSTouchBarAudioOutputVolumeLowTemplate", AudioPilot.menuIcon.image)
+		end)
+
+		it("rejects an unknown preset", function()
+			assert.has_error(function() AudioPilot:configure({ iconPreset = "nope" }) end)
 		end)
 	end)
 
@@ -703,6 +740,43 @@ describe("AudioPilot", function()
 		end)
 
 		it("sets menu title to sound icon", function() assert.are.equal("🔊", AudioPilot._menu._title) end)
+
+		it("shows the muted icon when the default output is muted", function()
+			mock_hs.audiodevice._defaultOutput._muted = true
+			AudioPilot:updateMenu()
+			assert.are.equal("🔇", AudioPilot._menu._title)
+		end)
+
+		it("shows the muted icon when the default output volume is 0", function()
+			mock_hs.audiodevice._defaultOutput._volume = 0
+			AudioPilot:updateMenu()
+			assert.are.equal("🔇", AudioPilot._menu._title)
+		end)
+
+		it("uses the configured mutedIcon", function()
+			AudioPilot.mutedIcon = "x"
+			mock_hs.audiodevice._defaultOutput._muted = true
+			AudioPilot:updateMenu()
+			assert.are.equal("x", AudioPilot._menu._title)
+		end)
+
+		it("updates the icon when the output's volume watcher fires", function()
+			local out = mock_hs.audiodevice._defaultOutput
+			AudioPilot:updateMenu()
+			assert.are.equal("🔊", AudioPilot._menu._title)
+			out._muted = true
+			out._watchCb(out:uid(), "mute", "outp", 0)
+			assert.are.equal("🔇", AudioPilot._menu._title)
+		end)
+
+		it("stops watching the previous output when the default output changes", function()
+			local old = mock_hs.audiodevice._defaultOutput
+			local new = makeMockDevice("Headphones", true)
+			mock_hs.audiodevice._defaultOutput = new
+			AudioPilot:updateMenu()
+			assert.is_false(old._watching)
+			assert.is_true(new._watching)
+		end)
 
 		it("uses a template icon when menuIcon names a system image", function()
 			local fakeIcon = { _sized = nil }

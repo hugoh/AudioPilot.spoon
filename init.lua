@@ -33,6 +33,19 @@ obj.notifyDelay = 5
 --- `{ image = "NSTouchBarAudioOutputVolumeLowTemplate" }`) for a monochrome template
 --- icon that adapts to the menu bar's light/dark appearance.
 obj.menuIcon = "🔊"
+--- AudioPilot.mutedIcon
+--- Variable
+--- Shown instead of `menuIcon` while the default output is muted or at volume 0
+--- (default: "🔇"). Same format as `menuIcon`.
+obj.mutedIcon = "🔇"
+
+local iconPresets = {
+	color = { menuIcon = "🔊", mutedIcon = "🔇" },
+	bw = {
+		menuIcon = { image = "NSTouchBarAudioOutputVolumeLowTemplate" },
+		mutedIcon = { image = "NSTouchBarAudioOutputVolumeOffTemplate" },
+	},
+}
 
 obj._menu = nil
 obj._config = nil
@@ -56,6 +69,8 @@ local function applyMenuIcon(menu, iconSpec)
 		menu:setTitle(iconSpec)
 	end
 end
+
+local function isSilent(device) return device ~= nil and (device:muted() == true or device:volume() == 0) end
 
 -- hs.json.read returns the *same* shared table instance for every empty array,
 -- so copy each list into its own table to avoid aliasing fields together.
@@ -353,8 +368,26 @@ function obj:onDeviceChange(event)
 	end
 end
 
+-- Track volume/mute of the current default output so the icon follows changes.
+function obj:_watchOutput(device)
+	if self._watched == device then return end
+	if self._watched then self._watched:watcherStop() end
+	self._watched = device
+	if device then
+		device:watcherCallback(function() self:_refreshIcon() end)
+		device:watcherStart()
+	end
+end
+
+function obj:_refreshIcon()
+	if not self._menu then return end
+	local silent = isSilent(hs.audiodevice.defaultOutputDevice())
+	applyMenuIcon(self._menu, silent and self.mutedIcon or self.menuIcon)
+end
+
 function obj:updateMenu()
 	if not self._menu then return end
+	self:_watchOutput(hs.audiodevice.defaultOutputDevice())
 
 	local available = self:getAvailableDevices()
 
@@ -419,7 +452,7 @@ function obj:updateMenu()
 		fn = function() self:openConfig() end,
 	})
 
-	applyMenuIcon(self._menu, self.menuIcon)
+	self:_refreshIcon()
 	self._menu:setMenu(items)
 end
 
@@ -591,12 +624,19 @@ function obj:openConfig() hs.open(self.configPath) end
 --- AudioPilot:configure(opts)
 --- Method
 --- Set one or more of AudioPilot's spoon-level variables (configPath, notifyDelay,
---- menuIcon) from a table. Call before `:start()`.
+--- menuIcon, mutedIcon, iconPreset) from a table. Call before `:start()`.
 ---
 --- Parameters:
----  * opts - a table with any of `configPath`, `notifyDelay`, `menuIcon`
+---  * opts - a table with any of `configPath`, `notifyDelay`, `menuIcon`, `mutedIcon`, `iconPreset`
+---    (`"color"` = emoji, `"bw"` = monochrome template icons; explicit
+---    menuIcon/mutedIcon in the same call override the preset)
 function obj:configure(opts)
-	for _, key in ipairs({ "configPath", "notifyDelay", "menuIcon" }) do
+	if opts.iconPreset then
+		local preset = iconPresets[opts.iconPreset]
+		assert(preset, "Unknown iconPreset: " .. tostring(opts.iconPreset) .. ' (use "color" or "bw")')
+		self.menuIcon, self.mutedIcon = preset.menuIcon, preset.mutedIcon
+	end
+	for _, key in ipairs({ "configPath", "notifyDelay", "menuIcon", "mutedIcon" }) do
 		if opts[key] ~= nil then self[key] = opts[key] end
 	end
 	return self
@@ -618,7 +658,6 @@ function obj:start()
 	self:loadConfig()
 	self._menu = hs.menubar.new()
 	self._menu:autosaveName(self.name)
-	applyMenuIcon(self._menu, self.menuIcon)
 	-- Prime the change tracker with the current defaults so a reload while already
 	-- on the best device does not fire a spurious notification; a real switch (or a
 	-- device connected during reload) still differs from these and notifies.
@@ -651,6 +690,7 @@ function obj:stop()
 		self._notifyTimer = nil
 	end
 	self:_flushNotify()
+	self:_watchOutput(nil)
 	if self._menu then
 		self._menu:delete()
 		self._menu = nil
