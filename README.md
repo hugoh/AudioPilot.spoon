@@ -102,6 +102,8 @@ spoon.AudioPilot:start()
 - **`configPath`** — where the config file lives (default `~/.config/AudioPilot/config.json`)
 - **`notifyDelay`** — seconds to wait before emitting a coalesced device-change notification (default `5`)
 - **`menuIcon`** — what to show in the menu bar (default `"🔊"`). Either a literal title string (e.g. an emoji), or a table `{ image = "SystemImageName" }` naming an `hs.image.imageFromName` system image for a monochrome template icon that adapts to the menu bar's light/dark appearance — e.g. `{ image = "NSTouchBarAudioOutputVolumeLowTemplate" }`, `{ image = "NSTouchBarAudioOutputVolumeMediumTemplate" }`, `{ image = "NSTouchBarAudioOutputVolumeHighTemplate" }`, or `{ image = "NSTouchBarAudioOutputVolumeOffTemplate" }`
+- **`mutedIcon`** — shown instead of `menuIcon` while the default output is muted or at volume 0 (default `"🔇"`). Same format as `menuIcon`.
+- **`iconPreset`** (`configure()` only) — `"color"` (default: 🔊 / 🔇) or `"bw"` (monochrome template icons that follow light/dark mode). Sets both `menuIcon` and `mutedIcon`; either can still be overridden in the same call.
 
 ## Menu Bar
 
