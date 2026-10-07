@@ -39,6 +39,8 @@ obj.menuIcon = "🔊"
 --- (default: "🔇"). Same format as `menuIcon`.
 obj.mutedIcon = "🔇"
 
+obj.log = hs.logger.new("AudioPilot", "info")
+
 local iconPresets = {
 	color = { menuIcon = "🔊", mutedIcon = "🔇" },
 	bw = {
@@ -46,11 +48,6 @@ local iconPresets = {
 		mutedIcon = { image = "NSTouchBarAudioOutputVolumeOffTemplate" },
 	},
 }
-
-obj._menu = nil
-obj._config = nil
-obj._editor = nil
-obj.log = hs.logger.new("AudioPilot", "info")
 
 -- obj.menuIcon is either a literal title string (e.g. an emoji) or a table
 -- { image = "SystemImageName" } naming an hs.image system image (a monochrome
@@ -72,13 +69,8 @@ end
 
 local function isSilent(device) return device ~= nil and (device:muted() == true or device:volume() == 0) end
 
--- hs.json.read returns the *same* shared table instance for every empty array,
--- so copy each list into its own table to avoid aliasing fields together.
-local function copyList(t) return hs.fnutils.copy(t or {}) end
-
 -- knownDevices entries are { uid = ..., name = ... } objects; copy them into
--- fresh tables (same anti-aliasing reason as copyList) and drop any malformed
--- entries.
+-- fresh tables and drop any malformed entries.
 local function copyKnown(t)
 	local out = {}
 	if t then
@@ -93,11 +85,21 @@ local function findByUid(list, uid)
 	return hs.fnutils.find(list, function(v) return v.uid == uid end)
 end
 
-local DIRECTIONS = { "output", "input" }
+-- Add uid to list, or refresh its name if it was renamed. Returns true if changed.
+local function upsertKnown(list, uid, name)
+	local entry = findByUid(list, uid)
+	if not entry then
+		table.insert(list, { uid = uid, name = name })
+		return true
+	end
+	if entry.name ~= name then
+		entry.name = name
+		return true
+	end
+	return false
+end
 
--- Seconds to wait for the editor webview's initial navigation to finish before
--- giving up and showing an error instead of an indefinite "Loading…" screen.
-local EDITOR_LOAD_TIMEOUT = 5
+local DIRECTIONS = { "output", "input" }
 
 -- A Bluetooth device's CoreAudio UID is its MAC address with ":" replaced by "-"
 -- and an ":output"/":input" suffix, e.g. "5C:52:30:DB:6E:80" -> "5C-52-30-DB-6E-80:output".
@@ -113,8 +115,10 @@ function obj:loadConfig()
 	config = config or {}
 	local known = config.knownDevices or {}
 	self._config = {
-		outputPriority = copyList(config.outputPriority),
-		inputPriority = copyList(config.inputPriority),
+		-- hs.json.read returns the *same* shared table for every empty array, so
+		-- copy each list to avoid aliasing the two priorities together.
+		outputPriority = hs.fnutils.copy(config.outputPriority or {}),
+		inputPriority = hs.fnutils.copy(config.inputPriority or {}),
 		knownDevices = {
 			output = copyKnown(known.output),
 			input = copyKnown(known.input),
@@ -154,14 +158,7 @@ function obj:getAvailableDevices()
 			local uid = dev:uid()
 			local name = dev:name()
 			set[uid] = name
-			local entry = findByUid(knownList, uid)
-			if not entry then
-				table.insert(knownList, { uid = uid, name = name })
-				changed = true
-			elseif entry.name ~= name then
-				entry.name = name -- refresh display name if the device was renamed
-				changed = true
-			end
+			if upsertKnown(knownList, uid, name) then changed = true end
 		end
 	end
 
@@ -174,23 +171,17 @@ function obj:getAvailableDevices()
 end
 
 -- Bluetooth minor types that are audio devices, mapped to the CoreAudio
--- direction(s) they expose. "both" covers devices with a mic and a speaker.
+-- direction(s) they expose.
 local BT_AUDIO_TYPES = {
-	["Headphones"] = "both",
-	["Headset"] = "both",
-	["Hands-free Device"] = "both",
-	["Car audio"] = "both",
-	["Speaker"] = "output",
-	["Loudspeaker"] = "output",
-	["Portable Audio"] = "output",
-	["HiFi Audio"] = "output",
-	["Microphone"] = "input",
-}
-
-local BT_DIRECTIONS = {
-	output = { "output" },
-	input = { "input" },
-	both = { "output", "input" },
+	["Headphones"] = { "output", "input" },
+	["Headset"] = { "output", "input" },
+	["Hands-free Device"] = { "output", "input" },
+	["Car audio"] = { "output", "input" },
+	["Speaker"] = { "output" },
+	["Loudspeaker"] = { "output" },
+	["Portable Audio"] = { "output" },
+	["HiFi Audio"] = { "output" },
+	["Microphone"] = { "input" },
 }
 
 -- Parse `system_profiler SPBluetoothDataType -json` output and add paired audio
@@ -207,21 +198,12 @@ function obj:mergeBluetoothDevices(jsonStr)
 	local changed = false
 
 	local function addDevice(name, info)
-		local dir = BT_AUDIO_TYPES[info.device_minorType]
-		if not dir then return end
+		local dirs = BT_AUDIO_TYPES[info.device_minorType]
+		if not dirs then return end
 		local addr = info.device_address
 		if not addr then return end
-		for _, d in ipairs(BT_DIRECTIONS[dir]) do
-			local uid = uidFromAddress(addr, d)
-			local knownList = self._config.knownDevices[d]
-			local entry = findByUid(knownList, uid)
-			if not entry then
-				table.insert(knownList, { uid = uid, name = name })
-				changed = true
-			elseif entry.name ~= name then
-				entry.name = name
-				changed = true
-			end
+		for _, d in ipairs(dirs) do
+			if upsertKnown(self._config.knownDevices[d], uidFromAddress(addr, d), name) then changed = true end
 		end
 	end
 
@@ -303,16 +285,12 @@ function obj:selectBestDevice(deviceType)
 	local availableSet = available[deviceType]
 	if not self._lastAnnounced then self._lastAnnounced = { output = nil, input = nil } end
 	if not self._notifyBuffer then self._notifyBuffer = { output = nil, input = nil } end
+	local Cap = deviceType == "output" and "Output" or "Input"
 
 	for _, uid in ipairs(priorities) do
 		local name = availableSet[uid]
 		if name then
-			local current
-			if deviceType == "output" then
-				current = hs.audiodevice.defaultOutputDevice()
-			else
-				current = hs.audiodevice.defaultInputDevice()
-			end
+			local current = hs.audiodevice["default" .. Cap .. "Device"]()
 
 			if current and current:uid() == uid then
 				-- Already on the best device — we switched earlier, or macOS did it
@@ -327,20 +305,9 @@ function obj:selectBestDevice(deviceType)
 				return
 			end
 
-			local allDevices
-			if deviceType == "output" then
-				allDevices = hs.audiodevice.allOutputDevices()
-			else
-				allDevices = hs.audiodevice.allInputDevices()
-			end
-
-			for _, dev in ipairs(allDevices) do
+			for _, dev in ipairs(hs.audiodevice["all" .. Cap .. "Devices"]()) do
 				if dev:uid() == uid then
-					if deviceType == "output" then
-						dev:setDefaultOutputDevice()
-					else
-						dev:setDefaultInputDevice()
-					end
+					dev["setDefault" .. Cap .. "Device"](dev)
 					self.log.i("Switched " .. deviceType .. " to: " .. name)
 					self:_bufferNotify(deviceType, self._lastAnnounced[deviceType], uid, name)
 					return
@@ -486,7 +453,7 @@ function obj:_buildEditorHTML()
 
 		local unranked = {}
 		for _, entry in ipairs(known) do
-			if not prioritySet[entry.uid] then unranked[#unranked + 1] = { uid = entry.uid, name = entry.name } end
+			if not prioritySet[entry.uid] then unranked[#unranked + 1] = entry end
 		end
 
 		return { priority = priorityList, unranked = unranked }
@@ -579,44 +546,8 @@ function obj:openEditor()
 		end
 	end)
 
-	-- Show a lightweight placeholder immediately so the window appears at once.
-	-- hs.webview:html() returns instantly but WKWebView paints asynchronously,
-	-- so swap in the full editor (inlined Sortable) only once the placeholder
-	-- has actually finished rendering -- otherwise it is replaced before it is
-	-- ever visible.
-	local loadingHTML = [[<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
-		:root{color-scheme:light dark}
-		body{font:-apple-system-body;display:flex;height:100vh;margin:0;
-		align-items:center;justify-content:center;color:GrayText}</style></head>
-		<body>Loading…</body></html>]]
-
-	local swapped = false
-	local editorRef = self._editor
-	local loadTimer
-
-	self._editor:navigationCallback(function(action)
-		if action == "didFinishNavigation" and not swapped and self._editor == editorRef then
-			swapped = true
-			if loadTimer then loadTimer:stop() end
-			editorRef:html(self:_buildEditorHTML(), "file://" .. _spoonPath)
-		end
-	end)
-
-	self._editor:html(loadingHTML)
+	self._editor:html(self:_buildEditorHTML(), "file://" .. _spoonPath)
 	self:focusEditor()
-
-	-- If didFinishNavigation never fires (e.g. WKWebView hangs), don't leave the
-	-- "Loading…" placeholder up forever -- replace it with an error message.
-	loadTimer = hs.timer.doAfter(EDITOR_LOAD_TIMEOUT, function()
-		if not swapped and self._editor == editorRef then
-			self.log.w("Editor webview did not finish loading within " .. EDITOR_LOAD_TIMEOUT .. "s")
-			editorRef:html([[<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
-				:root{color-scheme:light dark}
-				body{font:-apple-system-body;display:flex;height:100vh;margin:0;
-				align-items:center;justify-content:center;color:GrayText;text-align:center;padding:0 20px}
-				</style></head><body>Failed to load the editor. Please close this window and try again.</body></html>]])
-		end
-	end)
 end
 
 function obj:openConfig() hs.open(self.configPath) end
