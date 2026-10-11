@@ -1,44 +1,12 @@
-local mock_hs
+-- Busted tests for the AudioPilot Spoon using the shared hs_mock from spoon-tools.
+
+local hs_mock = require("hs_mock")
+
+local ctl
 local AudioPilot
 
-local function makeLogger()
-	local l = { _infos = {}, _warnings = {}, _errors = {} }
-	l.i = function(msg) table.insert(l._infos, msg) end
-	l.f = function(fmt, ...) table.insert(l._infos, string.format(fmt, ...)) end
-	l.w = function(msg) table.insert(l._warnings, msg) end
-	l.e = function(msg) table.insert(l._errors, msg) end
-	l.d = function() end
-	l.v = function() end
-	return l
-end
-
 local function makeMockDevice(name, isOutput, uid)
-	local d = { _name = name, _uid = uid or name }
-	function d:name() return self._name end
-	function d:uid() return self._uid end
-	function d:transportType() return self._transport end
-	function d:muted() return self._muted end
-	function d:volume() return self._volume end
-	function d:watcherCallback(fn)
-		self._watchCb = fn
-		return self
-	end
-	function d:watcherStart()
-		self._watching = true
-		return self
-	end
-	function d:watcherStop()
-		self._watching = false
-		return self
-	end
-	function d:setDefaultOutputDevice() mock_hs.audiodevice._defaultOutput = self end
-	function d:setDefaultInputDevice() mock_hs.audiodevice._defaultInput = self end
-	if isOutput then
-		table.insert(mock_hs.audiodevice._outputDevices, d)
-	else
-		table.insert(mock_hs.audiodevice._inputDevices, d)
-	end
-	return d
+	return ctl.addAudioDevice({ name = name, uid = uid, input = not isOutput })
 end
 
 local function findMenuItem(items, titlePart)
@@ -56,151 +24,52 @@ local function findKnown(list, uid)
 end
 
 before_each(function()
-	local config_store = {}
+	local hs
+	hs, ctl = hs_mock.new()
+	_G.hs = hs
 
-	mock_hs = {
-		logger = { new = function() return makeLogger() end },
-		json = {
-			read = function(path) return config_store[path] end,
-			write = function(data, path, _pretty)
-				config_store[path] = data
-				return true
-			end,
-			-- Tests that exercise Bluetooth parsing override this to return a
-			-- decoded fixture table (real JSON decoding is hs.json's concern).
-			decode = function(_s) return nil end,
-			encode = function(t)
-				local function serialize(v)
-					if type(v) == "table" then
-						if #v > 0 then
-							local parts = {}
-							for _, x in ipairs(v) do
-								table.insert(parts, serialize(x))
-							end
-							return "[" .. table.concat(parts, ",") .. "]"
-						else
-							local parts = {}
-							for k, x in pairs(v) do
-								table.insert(parts, '"' .. k .. '":' .. serialize(x))
-							end
-							return "{" .. table.concat(parts, ",") .. "}"
-						end
-					else
-						return '"' .. tostring(v) .. '"'
+	-- Local, not in hs_mock: deliberate stubs. Bluetooth parsing tests override
+	-- decode with a fixture table, and encode only needs a readable string; real
+	-- JSON is hs.json's concern, not AudioPilot's.
+	hs.json.decode = function(_s) return nil end
+	hs.json.encode = function(t)
+		local function serialize(v)
+			if type(v) == "table" then
+				if #v > 0 then
+					local parts = {}
+					for _, x in ipairs(v) do
+						table.insert(parts, serialize(x))
 					end
+					return "[" .. table.concat(parts, ",") .. "]"
+				else
+					local parts = {}
+					for k, x in pairs(v) do
+						table.insert(parts, '"' .. k .. '":' .. serialize(x))
+					end
+					return "{" .. table.concat(parts, ",") .. "}"
 				end
-				return serialize(t)
+			else
+				return '"' .. tostring(v) .. '"'
+			end
+		end
+		return serialize(t)
+	end
+	-- Local, not in hs_mock: an honest hs.webview needs a page and its JavaScript
+	-- bridge; these tests only check what AudioPilot hands it.
+	hs.webview = {
+		windowMasks = { titled = 1, closable = 2, resizable = 4 },
+		_lastWebview = nil,
+		_lastController = nil,
+		usercontent = {
+			new = function(_name)
+				local ctrl = {}
+				function ctrl:setCallback(fn) self._callback = fn end
+				return ctrl
 			end,
-		},
-		screen = {
-			mainScreen = function()
-				return { frame = function() return { x = 0, y = 0, w = 1440, h = 900 } end }
-			end,
-		},
-		webview = {
-			windowMasks = { titled = 1, closable = 2, resizable = 4 },
-			_lastWebview = nil,
-			_lastController = nil,
-			usercontent = {
-				new = function(_name)
-					local ctrl = {}
-					function ctrl:setCallback(fn) self._callback = fn end
-					return ctrl
-				end,
-			},
-		},
-		fnutils = {
-			copy = function(t)
-				local out = {}
-				for k, v in pairs(t) do
-					out[k] = v
-				end
-				return out
-			end,
-			find = function(t, fn)
-				for _, v in ipairs(t) do
-					if fn(v) then return v end
-				end
-				return nil
-			end,
-		},
-		fs = {
-			mkdir = function(_p) return true end,
-			-- Mirrors hs.fs.attributes(path): returns a (truthy) attributes table when
-			-- the path "exists" in our fake store, nil otherwise. Existence is modeled
-			-- on config_store so tests can simulate a present-but-unparsable file via
-			-- mock_hs._setConfig without touching the real filesystem.
-			attributes = function(p) return config_store[p] and {} or nil end,
-		},
-		task = {
-			_lastTask = nil,
-			new = function(_path, cb, _args)
-				local t = { _cb = cb, _started = false }
-				function t:start()
-					self._started = true
-					return self
-				end
-				mock_hs.task._lastTask = t
-				return t
-			end,
-		},
-		open = function(_p) end,
-		notify = {
-			_sent = {},
-		},
-		timer = {
-			_pending = nil,
-			doAfter = function(_delay, fn)
-				local t = { _fn = fn, _cancelled = false }
-				function t:stop() self._cancelled = true end
-				mock_hs.timer._pending = t
-				return t
-			end,
-		},
-		menubar = {
-			new = function()
-				local m = {}
-				function m:setTitle(t) self._title = t end
-				function m:setIcon(icon, template)
-					self._icon = icon
-					self._iconTemplate = template
-				end
-				function m:setMenu(items) self._menuItems = items end
-				function m:autosaveName(name) self._autosaveName = name end
-				function m:delete() self._deleted = true end
-				return m
-			end,
-		},
-		image = {
-			-- Tests that exercise the hs.image icon path override this to return a
-			-- fake icon; by default no name resolves, so callers fall back to setTitle.
-			imageFromName = function(_name) return nil end,
-		},
-		audiodevice = {
-			_outputDevices = {},
-			_inputDevices = {},
-			_defaultOutput = nil,
-			_defaultInput = nil,
-			allOutputDevices = function() return mock_hs.audiodevice._outputDevices end,
-			allInputDevices = function() return mock_hs.audiodevice._inputDevices end,
-			defaultOutputDevice = function() return mock_hs.audiodevice._defaultOutput end,
-			defaultInputDevice = function() return mock_hs.audiodevice._defaultInput end,
-			watcher = {
-				_callback = nil,
-				setCallback = function(cb) mock_hs.audiodevice.watcher._callback = cb end,
-				start = function() end,
-				stop = function() mock_hs.audiodevice.watcher._callback = nil end,
-			},
 		},
 	}
 
-	mock_hs.notify.new = function(attrs)
-		local n = { _attrs = attrs }
-		function n:send() table.insert(mock_hs.notify._sent, self._attrs) end
-		return n
-	end
-
-	mock_hs.webview.new = function(_frame, _prefs, controller)
+	hs.webview.new = function(_frame, _prefs, controller)
 		local wv = {}
 		function wv:html(h, _base) self._html = h end
 		function wv:show() self._visible = true end
@@ -214,24 +83,26 @@ before_each(function()
 		function wv.hswindow()
 			return { focus = function() end }
 		end
-		mock_hs.webview._lastWebview = wv
-		mock_hs.webview._lastController = controller
+		hs.webview._lastWebview = wv
+		hs.webview._lastController = controller
 		return wv
 	end
-
-	mock_hs._setConfig = function(path, cfg) config_store[path] = cfg end
-
-	package.loaded.hs = nil
-	_G.hs = mock_hs
 
 	AudioPilot = dofile("init.lua")
 end)
 
--- Fire the pending notify timer (simulates hs.timer.doAfter callback firing).
-local function fireNotifyTimer()
-	local t = mock_hs.timer._pending
-	if t and not t._cancelled then t._fn() end
+local function sent()
+	local attributes = {}
+	for _, n in ipairs(ctl.notifications) do
+		if n._sent then table.insert(attributes, n._attributes) end
+	end
+	return attributes
 end
+
+local function lastTask() return ctl.tasks[#ctl.tasks] end
+
+-- Fire pending one-shot timers, as the notify debounce would once it elapses.
+local function fireNotifyTimer() ctl.flush() end
 
 after_each(function()
 	if AudioPilot._menu then AudioPilot:stop() end
@@ -323,8 +194,8 @@ describe("AudioPilot", function()
 
 		it("saves config when creating default", function()
 			local writeCount = 0
-			local orig = mock_hs.json.write
-			mock_hs.json.write = function(data, path, pretty)
+			local orig = hs.json.write
+			hs.json.write = function(data, path, pretty)
 				writeCount = writeCount + 1
 				return orig(data, path, pretty)
 			end
@@ -333,11 +204,11 @@ describe("AudioPilot", function()
 		end)
 
 		it("reads existing config from disk", function()
-			mock_hs._setConfig(AudioPilot.configPath, {
+			ctl.files[AudioPilot.configPath] = {
 				outputPriority = { "DevA", "DevB" },
 				inputPriority = { "MicA" },
 				knownDevices = { output = {}, input = {} },
-			})
+			}
 			AudioPilot:loadConfig()
 			assert.are.equal(2, #AudioPilot._config.outputPriority)
 			assert.are.equal("DevA", AudioPilot._config.outputPriority[1])
@@ -346,7 +217,7 @@ describe("AudioPilot", function()
 
 		it("calls hs.fs.mkdir with config directory", function()
 			local mkdirPath = nil
-			mock_hs.fs.mkdir = function(p) mkdirPath = p end
+			hs.fs.mkdir = function(p) mkdirPath = p end
 			AudioPilot:loadConfig()
 			assert.is_not_nil(mkdirPath)
 			assert.truthy(mkdirPath:find("AudioPilot"))
@@ -356,18 +227,18 @@ describe("AudioPilot", function()
 			before_each(function()
 				-- Simulate an existing-but-unparsable file: the file "exists" (so
 				-- hs.fs.attributes finds it) but hs.json.read fails to parse it.
-				mock_hs._setConfig(AudioPilot.configPath, "this is not valid json")
-				mock_hs.json.read = function(_p) return nil end
+				ctl.files[AudioPilot.configPath] = "this is not valid json"
+				hs.json.read = function(_p) return nil end
 			end)
 
 			it("logs a warning instead of silently defaulting", function()
 				AudioPilot:loadConfig()
-				assert.truthy(#AudioPilot.log._warnings > 0)
+				assert.truthy(#ctl.logged("warning") > 0)
 			end)
 
 			it("does not overwrite the file on disk", function()
 				local writeCount = 0
-				mock_hs.json.write = function(_d, _p, _pp)
+				hs.json.write = function(_d, _p, _pp)
 					writeCount = writeCount + 1
 					return true
 				end
@@ -388,15 +259,15 @@ describe("AudioPilot", function()
 		it("calls hs.json.write with configPath", function()
 			AudioPilot:loadConfig()
 			local writtenPath
-			mock_hs.json.write = function(_data, path, _pretty) writtenPath = path end
+			hs.json.write = function(_data, path, _pretty) writtenPath = path end
 			AudioPilot:saveConfig()
 			assert.are.equal(AudioPilot.configPath, writtenPath)
 		end)
 
 		it("calls hs.fs.mkdir before writing", function()
 			local callOrder = {}
-			mock_hs.fs.mkdir = function(_p) table.insert(callOrder, "mkdir") end
-			mock_hs.json.write = function(_d, _p, _pp) table.insert(callOrder, "write") end
+			hs.fs.mkdir = function(_p) table.insert(callOrder, "mkdir") end
+			hs.json.write = function(_d, _p, _pp) table.insert(callOrder, "write") end
 			AudioPilot._config = { outputPriority = {}, inputPriority = {}, knownDevices = { output = {}, input = {} } }
 			AudioPilot:saveConfig()
 			assert.are.equal("mkdir", callOrder[1])
@@ -405,17 +276,17 @@ describe("AudioPilot", function()
 
 		it("logs an error and does not claim success when hs.json.write fails", function()
 			AudioPilot._config = { outputPriority = {}, inputPriority = {}, knownDevices = { output = {}, input = {} } }
-			mock_hs.json.write = function(_d, _p, _pp) return false end
+			hs.json.write = function(_d, _p, _pp) return false end
 			AudioPilot:saveConfig()
-			assert.truthy(#AudioPilot.log._errors > 0)
-			assert.are.equal(0, #AudioPilot.log._infos)
+			assert.truthy(#ctl.logged("error") > 0)
+			assert.are.equal(0, #ctl.logged("info"))
 		end)
 
 		it("logs success info when hs.json.write succeeds", function()
 			AudioPilot._config = { outputPriority = {}, inputPriority = {}, knownDevices = { output = {}, input = {} } }
 			AudioPilot:saveConfig()
-			assert.truthy(#AudioPilot.log._infos > 0)
-			assert.are.equal(0, #AudioPilot.log._errors)
+			assert.truthy(#ctl.logged("info") > 0)
+			assert.are.equal(0, #ctl.logged("error"))
 		end)
 	end)
 
@@ -462,7 +333,7 @@ describe("AudioPilot", function()
 
 		it("saves config when new device discovered", function()
 			local writeCount = 0
-			mock_hs.json.write = function(_d, _p, _pp) writeCount = writeCount + 1 end
+			hs.json.write = function(_d, _p, _pp) writeCount = writeCount + 1 end
 			makeMockDevice("BrandNewDevice", true)
 			AudioPilot:getAvailableDevices()
 			assert.truthy(writeCount > 0)
@@ -473,7 +344,7 @@ describe("AudioPilot", function()
 			-- Pre-populate knownDevices
 			AudioPilot._config.knownDevices.output = { { uid = "uidKnown", name = "KnownDevice" } }
 			local writeCount = 0
-			mock_hs.json.write = function(_d, _p, _pp) writeCount = writeCount + 1 end
+			hs.json.write = function(_d, _p, _pp) writeCount = writeCount + 1 end
 			AudioPilot:getAvailableDevices()
 			assert.are.equal(0, writeCount)
 		end)
@@ -486,7 +357,7 @@ describe("AudioPilot", function()
 			makeMockDevice("DevB", true)
 			AudioPilot._config.outputPriority = { "DevA", "DevB" }
 			AudioPilot:selectBestDevice("output")
-			assert.are.equal("DevB", mock_hs.audiodevice._defaultOutput:name())
+			assert.are.equal("DevB", ctl.audio.defaultOutput:name())
 		end)
 
 		it("selects first priority device when connected", function()
@@ -494,7 +365,7 @@ describe("AudioPilot", function()
 			makeMockDevice("DevB", true)
 			AudioPilot._config.outputPriority = { "DevA", "DevB" }
 			AudioPilot:selectBestDevice("output")
-			assert.are.equal("DevA", mock_hs.audiodevice._defaultOutput:name())
+			assert.are.equal("DevA", ctl.audio.defaultOutput:name())
 		end)
 
 		it("does not switch if best device is already default", function()
@@ -502,9 +373,9 @@ describe("AudioPilot", function()
 			local switchCount = 0
 			devA.setDefaultOutputDevice = function(self)
 				switchCount = switchCount + 1
-				mock_hs.audiodevice._defaultOutput = self
+				ctl.audio.defaultOutput = self
 			end
-			mock_hs.audiodevice._defaultOutput = devA
+			ctl.audio.defaultOutput = devA
 			AudioPilot._config.outputPriority = { "DevA" }
 			AudioPilot:selectBestDevice("output")
 			assert.are.equal(0, switchCount)
@@ -514,14 +385,14 @@ describe("AudioPilot", function()
 			AudioPilot._config.outputPriority = { "NonExistentDevice" }
 			-- Should not error, no switch
 			AudioPilot:selectBestDevice("output")
-			assert.is_nil(mock_hs.audiodevice._defaultOutput)
+			assert.is_nil(ctl.audio.defaultOutput)
 		end)
 
 		it("selects highest-priority available input device", function()
 			makeMockDevice("MicB", false)
 			AudioPilot._config.inputPriority = { "MicA", "MicB" }
 			AudioPilot:selectBestDevice("input")
-			assert.are.equal("MicB", mock_hs.audiodevice._defaultInput:name())
+			assert.are.equal("MicB", ctl.audio.defaultInput:name())
 		end)
 
 		it("does not switch input if best device is already default", function()
@@ -529,9 +400,9 @@ describe("AudioPilot", function()
 			local switchCount = 0
 			mic.setDefaultInputDevice = function(self)
 				switchCount = switchCount + 1
-				mock_hs.audiodevice._defaultInput = self
+				ctl.audio.defaultInput = self
 			end
-			mock_hs.audiodevice._defaultInput = mic
+			ctl.audio.defaultInput = mic
 			AudioPilot._config.inputPriority = { "MicA" }
 			AudioPilot:selectBestDevice("input")
 			assert.are.equal(0, switchCount)
@@ -551,9 +422,9 @@ describe("AudioPilot", function()
 			AudioPilot._config.outputPriority = { "DevA" }
 			AudioPilot:selectBestDevice("output")
 			fireNotifyTimer()
-			assert.are.equal(1, #mock_hs.notify._sent)
-			assert.are.equal("AudioPilot", mock_hs.notify._sent[1].title)
-			assert.truthy(mock_hs.notify._sent[1].informativeText:find("DevA"))
+			assert.are.equal(1, #sent())
+			assert.are.equal("AudioPilot", sent()[1].title)
+			assert.truthy(sent()[1].informativeText:find("DevA"))
 		end)
 
 		it("sends notification when switching input device", function()
@@ -561,44 +432,44 @@ describe("AudioPilot", function()
 			AudioPilot._config.inputPriority = { "MicA" }
 			AudioPilot:selectBestDevice("input")
 			fireNotifyTimer()
-			assert.are.equal(1, #mock_hs.notify._sent)
-			assert.truthy(mock_hs.notify._sent[1].informativeText:find("MicA"))
+			assert.are.equal(1, #sent())
+			assert.truthy(sent()[1].informativeText:find("MicA"))
 		end)
 
 		it("notifies when macOS already set the best device (first observation)", function()
 			-- macOS auto-switches to AirPods on connect before our watcher runs, so
 			-- the device is already current; we should still report the change once.
 			local dev = makeMockDevice("DevA", true)
-			mock_hs.audiodevice._defaultOutput = dev
+			ctl.audio.defaultOutput = dev
 			AudioPilot._config.outputPriority = { "DevA" }
 			AudioPilot:selectBestDevice("output")
 			fireNotifyTimer()
-			assert.are.equal(1, #mock_hs.notify._sent)
-			assert.truthy(mock_hs.notify._sent[1].informativeText:find("DevA"))
+			assert.are.equal(1, #sent())
+			assert.truthy(sent()[1].informativeText:find("DevA"))
 		end)
 
 		it("does not notify again when the best device is unchanged", function()
 			local dev = makeMockDevice("DevA", true)
-			mock_hs.audiodevice._defaultOutput = dev
+			ctl.audio.defaultOutput = dev
 			AudioPilot._config.outputPriority = { "DevA" }
 			AudioPilot:selectBestDevice("output")
 			fireNotifyTimer()
 			AudioPilot:selectBestDevice("output")
 			AudioPilot:selectBestDevice("output")
 			fireNotifyTimer()
-			assert.are.equal(1, #mock_hs.notify._sent)
+			assert.are.equal(1, #sent())
 		end)
 
 		it("does not notify when primed to the current best device", function()
 			-- start() primes _lastAnnounced to the current defaults so a reload that
 			-- is already correct stays silent.
 			local dev = makeMockDevice("DevA", true)
-			mock_hs.audiodevice._defaultOutput = dev
+			ctl.audio.defaultOutput = dev
 			AudioPilot._config.outputPriority = { "DevA" }
 			AudioPilot._lastAnnounced = { output = "DevA", input = nil }
 			AudioPilot:selectBestDevice("output")
 			fireNotifyTimer()
-			assert.are.equal(0, #mock_hs.notify._sent)
+			assert.are.equal(0, #sent())
 		end)
 
 		describe("buffering", function()
@@ -610,8 +481,8 @@ describe("AudioPilot", function()
 				AudioPilot:selectBestDevice("output")
 				AudioPilot:selectBestDevice("input")
 				fireNotifyTimer()
-				assert.are.equal(1, #mock_hs.notify._sent)
-				local text = mock_hs.notify._sent[1].informativeText
+				assert.are.equal(1, #sent())
+				local text = sent()[1].informativeText
 				assert.truthy(text:find("output"))
 				assert.truthy(text:find("Speaker"))
 				assert.truthy(text:find("input"))
@@ -629,7 +500,7 @@ describe("AudioPilot", function()
 				-- Then buffer back to A (net zero)
 				AudioPilot:_bufferNotify("output", "DevA", "DevA", "DevA")
 				fireNotifyTimer()
-				assert.are.equal(0, #mock_hs.notify._sent)
+				assert.are.equal(0, #sent())
 			end)
 
 			it("sends the notification immediately when notifyDelay is 0", function()
@@ -637,7 +508,7 @@ describe("AudioPilot", function()
 				AudioPilot._config.outputPriority = { "DevA" }
 				AudioPilot.notifyDelay = 0
 				AudioPilot:_bufferNotify("output", nil, "DevA", "DevA")
-				assert.are.equal(1, #mock_hs.notify._sent)
+				assert.are.equal(1, #sent())
 			end)
 
 			it("updates _lastAnnounced only after flush", function()
@@ -650,7 +521,7 @@ describe("AudioPilot", function()
 			end)
 
 			it("stop() flushes pending notification and cancels the timer", function()
-				AudioPilot._menu = mock_hs.menubar.new()
+				AudioPilot._menu = hs.menubar.new()
 				AudioPilot:loadConfig()
 				makeMockDevice("DevA", true)
 				AudioPilot._config.outputPriority = { "DevA" }
@@ -660,10 +531,9 @@ describe("AudioPilot", function()
 				AudioPilot:selectBestDevice("output")
 				AudioPilot:stop()
 				-- stop() flushes the buffer so the notification is sent immediately
-				assert.are.equal(1, #mock_hs.notify._sent)
+				assert.are.equal(1, #sent())
 				-- Timer is cancelled so it cannot fire a second notification later
-				local t = mock_hs.timer._pending
-				assert.is_true(t._cancelled)
+				assert.are.same({}, ctl.timers())
 			end)
 		end)
 	end)
@@ -671,7 +541,7 @@ describe("AudioPilot", function()
 	describe("onDeviceChange", function()
 		before_each(function()
 			AudioPilot:loadConfig()
-			AudioPilot._menu = mock_hs.menubar.new()
+			AudioPilot._menu = hs.menubar.new()
 		end)
 
 		it("calls selectBestDevice for output and input on dev# event", function()
@@ -728,51 +598,51 @@ describe("AudioPilot", function()
 	describe("updateMenu", function()
 		before_each(function()
 			AudioPilot:loadConfig()
-			AudioPilot._menu = mock_hs.menubar.new()
+			AudioPilot._menu = hs.menubar.new()
 			AudioPilot._config.outputPriority = { "Speakers", "Headphones" }
 			AudioPilot._config.inputPriority = { "Microphone" }
 			makeMockDevice("Speakers", true)
 			makeMockDevice("Headphones", true)
 			makeMockDevice("Microphone", false)
-			mock_hs.audiodevice._defaultOutput = mock_hs.audiodevice._outputDevices[1] -- Speakers
-			mock_hs.audiodevice._defaultInput = mock_hs.audiodevice._inputDevices[1] -- Microphone
+			ctl.audio.defaultOutput = ctl.audio.outputs[1] -- Speakers
+			ctl.audio.defaultInput = ctl.audio.inputs[1] -- Microphone
 			AudioPilot:updateMenu()
 		end)
 
 		it("sets menu title to sound icon", function() assert.are.equal("🔊", AudioPilot._menu._title) end)
 
 		it("shows the muted icon when the default output is muted", function()
-			mock_hs.audiodevice._defaultOutput._muted = true
+			ctl.audio.defaultOutput._muted = true
 			AudioPilot:updateMenu()
 			assert.are.equal("🔇", AudioPilot._menu._title)
 		end)
 
 		it("shows the muted icon when the default output volume is 0", function()
-			mock_hs.audiodevice._defaultOutput._volume = 0
+			ctl.audio.defaultOutput._volume = 0
 			AudioPilot:updateMenu()
 			assert.are.equal("🔇", AudioPilot._menu._title)
 		end)
 
 		it("uses the configured mutedIcon", function()
 			AudioPilot.mutedIcon = "x"
-			mock_hs.audiodevice._defaultOutput._muted = true
+			ctl.audio.defaultOutput._muted = true
 			AudioPilot:updateMenu()
 			assert.are.equal("x", AudioPilot._menu._title)
 		end)
 
 		it("updates the icon when the output's volume watcher fires", function()
-			local out = mock_hs.audiodevice._defaultOutput
+			local out = ctl.audio.defaultOutput
 			AudioPilot:updateMenu()
 			assert.are.equal("🔊", AudioPilot._menu._title)
 			out._muted = true
-			out._watchCb(out:uid(), "mute", "outp", 0)
+			ctl.deviceEvent(out, "mute", "outp", 0)
 			assert.are.equal("🔇", AudioPilot._menu._title)
 		end)
 
 		it("stops watching the previous output when the default output changes", function()
-			local old = mock_hs.audiodevice._defaultOutput
+			local old = ctl.audio.defaultOutput
 			local new = makeMockDevice("Headphones", true)
-			mock_hs.audiodevice._defaultOutput = new
+			ctl.audio.defaultOutput = new
 			AudioPilot:updateMenu()
 			assert.is_false(old._watching)
 			assert.is_true(new._watching)
@@ -781,10 +651,7 @@ describe("AudioPilot", function()
 		it("uses a template icon when menuIcon names a system image", function()
 			local fakeIcon = { _sized = nil }
 			function fakeIcon:setSize(s) self._sized = s end
-			mock_hs.image.imageFromName = function(name)
-				if name == "SomeSystemImage" then return fakeIcon end
-				return nil
-			end
+			ctl.images.SomeSystemImage = fakeIcon
 			AudioPilot.menuIcon = { image = "SomeSystemImage" }
 			AudioPilot:updateMenu()
 			assert.are.equal(fakeIcon, AudioPilot._menu._icon)
@@ -793,7 +660,6 @@ describe("AudioPilot", function()
 		end)
 
 		it("falls back to an empty title when menuIcon names an unknown system image", function()
-			mock_hs.image.imageFromName = function() return nil end
 			AudioPilot.menuIcon = { image = "Bogus" }
 			AudioPilot:updateMenu()
 			assert.are.equal("", AudioPilot._menu._title)
@@ -801,54 +667,54 @@ describe("AudioPilot", function()
 		end)
 
 		it("menu contains current output device name", function()
-			local item = findMenuItem(AudioPilot._menu._menuItems, "Output:")
+			local item = findMenuItem(AudioPilot._menu._menu, "Output:")
 			assert.is_not_nil(item)
 			assert.truthy(item.title:find("Speakers"))
 		end)
 
 		it("menu contains current input device name", function()
-			local item = findMenuItem(AudioPilot._menu._menuItems, "Input:")
+			local item = findMenuItem(AudioPilot._menu._menu, "Input:")
 			assert.is_not_nil(item)
 			assert.truthy(item.title:find("Microphone"))
 		end)
 
 		it("marks current output device with asterisk", function()
-			local item = findMenuItem(AudioPilot._menu._menuItems, "* Speakers")
+			local item = findMenuItem(AudioPilot._menu._menu, "* Speakers")
 			assert.is_not_nil(item)
 		end)
 
 		it("marks non-current connected device without asterisk", function()
-			local item = findMenuItem(AudioPilot._menu._menuItems, "  Headphones")
+			local item = findMenuItem(AudioPilot._menu._menu, "  Headphones")
 			assert.is_not_nil(item)
 		end)
 
 		it("marks disconnected priority device", function()
 			AudioPilot._config.outputPriority = { "Speakers", "DisconnectedDevice" }
 			AudioPilot:updateMenu()
-			local item = findMenuItem(AudioPilot._menu._menuItems, "DisconnectedDevice")
+			local item = findMenuItem(AudioPilot._menu._menu, "DisconnectedDevice")
 			assert.is_not_nil(item)
 			assert.truthy(item.title:find("disconnected"))
 		end)
 
 		it("menu contains Refresh item", function()
-			local item = findMenuItem(AudioPilot._menu._menuItems, "Refresh")
+			local item = findMenuItem(AudioPilot._menu._menu, "Refresh")
 			assert.is_not_nil(item)
 		end)
 
 		it("menu contains Edit Priorities item", function()
-			local item = findMenuItem(AudioPilot._menu._menuItems, "Edit Priorities")
+			local item = findMenuItem(AudioPilot._menu._menu, "Edit Priorities")
 			assert.is_not_nil(item)
 		end)
 
 		it("menu contains Edit Config File item", function()
-			local item = findMenuItem(AudioPilot._menu._menuItems, "Edit Config File")
+			local item = findMenuItem(AudioPilot._menu._menu, "Edit Config File")
 			assert.is_not_nil(item)
 		end)
 
 		it("Refresh item triggers selectBestDevice for both types", function()
 			local calls = {}
 			AudioPilot.selectBestDevice = function(_self, deviceType) table.insert(calls, deviceType) end
-			local item = findMenuItem(AudioPilot._menu._menuItems, "Refresh")
+			local item = findMenuItem(AudioPilot._menu._menu, "Refresh")
 			assert.is_not_nil(item)
 			item.fn()
 			local hasOutput, hasInput = false, false
@@ -861,18 +727,16 @@ describe("AudioPilot", function()
 		end)
 
 		it("Edit Config File item calls hs.open with configPath", function()
-			local openedPath = nil
-			mock_hs.open = function(p) openedPath = p end
-			local item = findMenuItem(AudioPilot._menu._menuItems, "Edit Config File")
+			local item = findMenuItem(AudioPilot._menu._menu, "Edit Config File")
 			assert.is_not_nil(item)
 			item.fn()
-			assert.are.equal(AudioPilot.configPath, openedPath)
+			assert.are.same({ AudioPilot.configPath }, ctl.opened)
 		end)
 
 		it("Edit Priorities item calls openEditor", function()
 			local editorOpened = false
 			AudioPilot.openEditor = function(_self) editorOpened = true end
-			local item = findMenuItem(AudioPilot._menu._menuItems, "Edit Priorities")
+			local item = findMenuItem(AudioPilot._menu._menu, "Edit Priorities")
 			assert.is_not_nil(item)
 			item.fn()
 			assert.is_true(editorOpened)
@@ -941,7 +805,7 @@ describe("AudioPilot", function()
 	describe("openEditor", function()
 		before_each(function()
 			AudioPilot:loadConfig()
-			AudioPilot._menu = mock_hs.menubar.new()
+			AudioPilot._menu = hs.menubar.new()
 		end)
 
 		it("creates a webview on first call", function()
@@ -951,7 +815,7 @@ describe("AudioPilot", function()
 
 		it("shows the webview", function()
 			AudioPilot:openEditor()
-			assert.is_true(mock_hs.webview._lastWebview._visible)
+			assert.is_true(hs.webview._lastWebview._visible)
 		end)
 
 		it("does not create a second webview when already open", function()
@@ -963,21 +827,21 @@ describe("AudioPilot", function()
 
 		it("window closing callback sets _editor to nil", function()
 			AudioPilot:openEditor()
-			local wv = mock_hs.webview._lastWebview
+			local wv = hs.webview._lastWebview
 			wv._windowCb("closing")
 			assert.is_nil(AudioPilot._editor)
 		end)
 
 		it("save callback updates outputPriority", function()
 			AudioPilot:openEditor()
-			local ctrl = mock_hs.webview._lastController
+			local ctrl = hs.webview._lastController
 			ctrl._callback({ body = { action = "save", outputPriority = { "NewOut" }, inputPriority = {} } })
 			assert.are.equal("NewOut", AudioPilot._config.outputPriority[1])
 		end)
 
 		it("save callback updates inputPriority", function()
 			AudioPilot:openEditor()
-			local ctrl = mock_hs.webview._lastController
+			local ctrl = hs.webview._lastController
 			ctrl._callback({ body = { action = "save", outputPriority = {}, inputPriority = { "NewMic" } } })
 			assert.are.equal("NewMic", AudioPilot._config.inputPriority[1])
 		end)
@@ -985,12 +849,12 @@ describe("AudioPilot", function()
 		it("save callback calls saveConfig", function()
 			AudioPilot:openEditor()
 			local writeCount = 0
-			local origWrite = mock_hs.json.write
-			mock_hs.json.write = function(data, path, pretty)
+			local origWrite = hs.json.write
+			hs.json.write = function(data, path, pretty)
 				writeCount = writeCount + 1
 				return origWrite(data, path, pretty)
 			end
-			local ctrl = mock_hs.webview._lastController
+			local ctrl = hs.webview._lastController
 			ctrl._callback({ body = { action = "save", outputPriority = {}, inputPriority = {} } })
 			assert.truthy(writeCount > 0)
 		end)
@@ -999,7 +863,7 @@ describe("AudioPilot", function()
 			local calls = {}
 			AudioPilot:openEditor()
 			AudioPilot.selectBestDevice = function(_self, dt) table.insert(calls, dt) end
-			local ctrl = mock_hs.webview._lastController
+			local ctrl = hs.webview._lastController
 			ctrl._callback({ body = { action = "save", outputPriority = {}, inputPriority = {} } })
 			local found = false
 			for _, v in ipairs(calls) do
@@ -1012,7 +876,7 @@ describe("AudioPilot", function()
 			local calls = {}
 			AudioPilot:openEditor()
 			AudioPilot.selectBestDevice = function(_self, dt) table.insert(calls, dt) end
-			local ctrl = mock_hs.webview._lastController
+			local ctrl = hs.webview._lastController
 			ctrl._callback({ body = { action = "save", outputPriority = {}, inputPriority = {} } })
 			local found = false
 			for _, v in ipairs(calls) do
@@ -1023,7 +887,7 @@ describe("AudioPilot", function()
 
 		it("save callback deletes webview and sets _editor to nil", function()
 			AudioPilot:openEditor()
-			local ctrl = mock_hs.webview._lastController
+			local ctrl = hs.webview._lastController
 			ctrl._callback({ body = { action = "save", outputPriority = {}, inputPriority = {} } })
 			assert.is_nil(AudioPilot._editor)
 		end)
@@ -1034,7 +898,7 @@ describe("AudioPilot", function()
 				{ uid = "uidKeep", name = "Keep Device" },
 			}
 			AudioPilot:openEditor()
-			local ctrl = mock_hs.webview._lastController
+			local ctrl = hs.webview._lastController
 			ctrl._callback({
 				body = { action = "save", outputPriority = {}, inputPriority = {}, forgetOutput = { "uidGone" } },
 			})
@@ -1045,7 +909,7 @@ describe("AudioPilot", function()
 		it("save callback forgets known input devices", function()
 			AudioPilot._config.knownDevices.input = { { uid = "uidMicGone", name = "Old Mic" } }
 			AudioPilot:openEditor()
-			local ctrl = mock_hs.webview._lastController
+			local ctrl = hs.webview._lastController
 			ctrl._callback({
 				body = { action = "save", outputPriority = {}, inputPriority = {}, forgetInput = { "uidMicGone" } },
 			})
@@ -1055,7 +919,7 @@ describe("AudioPilot", function()
 		it("save callback without forget lists leaves knownDevices intact", function()
 			AudioPilot._config.knownDevices.output = { { uid = "uidKeep", name = "Keep" } }
 			AudioPilot:openEditor()
-			local ctrl = mock_hs.webview._lastController
+			local ctrl = hs.webview._lastController
 			ctrl._callback({ body = { action = "save", outputPriority = {}, inputPriority = {} } })
 			assert.is_not_nil(findKnown(AudioPilot._config.knownDevices.output, "uidKeep"))
 		end)
@@ -1063,26 +927,26 @@ describe("AudioPilot", function()
 		it("cancel callback does not modify config", function()
 			AudioPilot._config.outputPriority = { "Original" }
 			AudioPilot:openEditor()
-			local ctrl = mock_hs.webview._lastController
+			local ctrl = hs.webview._lastController
 			ctrl._callback({ body = { action = "cancel" } })
 			assert.are.equal("Original", AudioPilot._config.outputPriority[1])
 		end)
 
 		it("cancel callback deletes webview and sets _editor to nil", function()
 			AudioPilot:openEditor()
-			local ctrl = mock_hs.webview._lastController
+			local ctrl = hs.webview._lastController
 			ctrl._callback({ body = { action = "cancel" } })
 			assert.is_nil(AudioPilot._editor)
 		end)
 
 		it("deletes the webview when its window is closed, so it isn't leaked", function()
 			AudioPilot:openEditor()
-			assert.is_true(mock_hs.webview._lastWebview._deleteOnClose)
+			assert.is_true(hs.webview._lastWebview._deleteOnClose)
 		end)
 
 		it("loads the editor HTML straight away", function()
 			AudioPilot:openEditor()
-			assert.truthy(mock_hs.webview._lastWebview._html:find("__initialState", 1, true))
+			assert.truthy(hs.webview._lastWebview._html:find("__initialState", 1, true))
 		end)
 	end)
 
@@ -1104,7 +968,7 @@ describe("AudioPilot", function()
 
 		it("sets audio watcher callback on start", function()
 			AudioPilot:start()
-			assert.is_not_nil(mock_hs.audiodevice.watcher._callback)
+			assert.is_true(hs.audiodevice.watcher.isRunning())
 		end)
 
 		it("calls selectBestDevice for output on start", function()
@@ -1128,7 +992,7 @@ describe("AudioPilot", function()
 		it("stops watcher on stop", function()
 			AudioPilot:start()
 			AudioPilot:stop()
-			assert.is_nil(mock_hs.audiodevice.watcher._callback)
+			assert.is_false(hs.audiodevice.watcher.isRunning())
 		end)
 
 		it("deletes menu on stop", function()
@@ -1154,8 +1018,8 @@ describe("AudioPilot", function()
 
 		it("scans for Bluetooth devices on start", function()
 			AudioPilot:start()
-			assert.is_not_nil(mock_hs.task._lastTask)
-			assert.is_true(mock_hs.task._lastTask._started)
+			assert.is_not_nil(lastTask())
+			assert.is_true(lastTask():isRunning())
 		end)
 
 		it("closes an open editor webview on stop", function()
@@ -1180,7 +1044,7 @@ describe("AudioPilot", function()
 			makeMockDevice("New Name", true, "stableUid")
 			AudioPilot._config.outputPriority = { "stableUid" }
 			AudioPilot:selectBestDevice("output")
-			assert.are.equal("stableUid", mock_hs.audiodevice._defaultOutput:uid())
+			assert.are.equal("stableUid", ctl.audio.defaultOutput:uid())
 		end)
 
 		it("distinguishes two devices that share a name", function()
@@ -1188,20 +1052,20 @@ describe("AudioPilot", function()
 			local devB = makeMockDevice("USB Audio", true, "uidB")
 			AudioPilot._config.outputPriority = { "uidB" }
 			AudioPilot:selectBestDevice("output")
-			assert.are.equal(devB, mock_hs.audiodevice._defaultOutput)
+			assert.are.equal(devB, ctl.audio.defaultOutput)
 		end)
 
 		it("does not switch when the priority uid is not connected", function()
 			makeMockDevice("USB Audio", true, "uidA")
 			AudioPilot._config.outputPriority = { "uidB" } -- different uid, same name
 			AudioPilot:selectBestDevice("output")
-			assert.is_nil(mock_hs.audiodevice._defaultOutput)
+			assert.is_nil(ctl.audio.defaultOutput)
 		end)
 
 		it("refreshes a stored name when the device is renamed", function()
 			makeMockDevice("Old Name", true, "uidR")
 			AudioPilot:getAvailableDevices()
-			mock_hs.audiodevice._outputDevices[1]._name = "New Name"
+			ctl.audio.outputs[1]._name = "New Name"
 			AudioPilot:getAvailableDevices()
 			local entry = findKnown(AudioPilot._config.knownDevices.output, "uidR")
 			assert.is_not_nil(entry)
@@ -1212,7 +1076,7 @@ describe("AudioPilot", function()
 	describe("mergeBluetoothDevices", function()
 		before_each(function()
 			AudioPilot:loadConfig()
-			mock_hs.json.decode = function(_s)
+			hs.json.decode = function(_s)
 				return {
 					SPBluetoothDataType = {
 						{
@@ -1277,7 +1141,7 @@ describe("AudioPilot", function()
 		end)
 
 		it("ignores unparsable data without error", function()
-			mock_hs.json.decode = function(_s) error("bad json") end
+			hs.json.decode = function(_s) error("bad json") end
 			assert.has_no.errors(function() AudioPilot:mergeBluetoothDevices("garbage") end)
 		end)
 	end)
@@ -1285,36 +1149,35 @@ describe("AudioPilot", function()
 	describe("menu (Bluetooth)", function()
 		it("contains a Rescan Bluetooth Devices item that triggers a scan", function()
 			AudioPilot:loadConfig()
-			AudioPilot._menu = mock_hs.menubar.new()
+			AudioPilot._menu = hs.menubar.new()
 			AudioPilot:updateMenu()
-			local item = findMenuItem(AudioPilot._menu._menuItems, "Rescan Bluetooth")
+			local item = findMenuItem(AudioPilot._menu._menu, "Rescan Bluetooth")
 			assert.is_not_nil(item)
 			item.fn()
-			assert.is_not_nil(mock_hs.task._lastTask)
+			assert.is_not_nil(lastTask())
 		end)
 	end)
 
 	describe("scanBluetoothDevices", function()
 		it("logs a warning when hs.task.new fails to create a task", function()
-			mock_hs.task.new = function(_path, _cb, _args) return nil end
+			hs.task.new = function(_path, _cb, _args) return nil end
 			AudioPilot:scanBluetoothDevices()
-			assert.truthy(#AudioPilot.log._warnings > 0)
+			assert.truthy(#ctl.logged("warning") > 0)
 		end)
 
 		it("logs a warning when the task fails to start", function()
-			mock_hs.task.new = function(_path, cb, _args)
+			hs.task.new = function(_path, cb, _args)
 				local t = { _cb = cb }
 				function t.start(_self) return false end
-				mock_hs.task._lastTask = t
 				return t
 			end
 			AudioPilot:scanBluetoothDevices()
-			assert.truthy(#AudioPilot.log._warnings > 0)
+			assert.truthy(#ctl.logged("warning") > 0)
 		end)
 
 		it("does not log a warning when the task starts successfully", function()
 			AudioPilot:scanBluetoothDevices()
-			assert.are.equal(0, #AudioPilot.log._warnings)
+			assert.are.equal(0, #ctl.logged("warning"))
 		end)
 	end)
 
