@@ -17,7 +17,7 @@ typos = "1.50.3"
 zizmor = "1.30.1"
 
 [env]
-HS_MOCK_VERSION = "1.8.0"
+HS_MOCK_VERSION = "1.0.0"
 
 [tasks.docs]
 run = "uvx --from git+https://github.com/hugoh/spoon-tools spoon-generate-docs"
@@ -49,7 +49,7 @@ description = "Build a self-contained AudioPilot.spoon.zip (includes docs.json)"
 
 [tasks.deps]
 description = "Install the pinned hs_mock into the project-local .rocks tree"
-run = "luarocks install --tree .rocks https://github.com/hugoh/spoon-tools/releases/download/v$HS_MOCK_VERSION/hs-mock-$HS_MOCK_VERSION-1.rockspec"
+run = "luarocks install --tree .rocks https://github.com/hugoh/hs-mock/releases/download/v$HS_MOCK_VERSION/hs-mock-$HS_MOCK_VERSION-1.rockspec"
 sources = ["mise.toml"]
 outputs = [".rocks/lib/luarocks/rocks-5.4/hs-mock/*/rock_manifest"]
 
