@@ -1,5 +1,5 @@
 [tools]
-node = "24.22.1"
+node = "26.13.0"
 jactionlint = "2.4.0"
 biome = "2.6.4"
 pinact = "5.0.2"
